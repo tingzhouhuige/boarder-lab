@@ -1103,6 +1103,18 @@ function exportImage() {
     }
 
     try {
+      if (window.borderLabDesktop?.saveFile) {
+        const buffer = await finalBlob.arrayBuffer();
+        const result = await window.borderLabDesktop.saveFile({
+          suggestedName: fileName,
+          mimeType: shouldExportRounded ? "image/png" : "image/jpeg",
+          buffer
+        });
+        if (!result?.canceled) {
+          return;
+        }
+      }
+
       if ("showSaveFilePicker" in window) {
         const handle = await window.showSaveFilePicker({
           suggestedName: fileName,

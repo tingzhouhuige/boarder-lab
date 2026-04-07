@@ -1,0 +1,49 @@
+{
+  "name": "border-lab",
+  "productName": "Border Lab",
+  "version": "1.0.1",
+  "description": "Photo border and EXIF annotation tool for desktop and browser.",
+  "main": "main.js",
+  "author": "Xiaohui",
+  "license": "UNLICENSED",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-packager . \"Border Lab\" --platform=win32 --arch=x64 --out=dist --overwrite --asar --icon=assets/app-icon.ico --ignore=\"^(releases|dist|node_modules\\\\.cache)\"",
+    "dist:installer": "electron-builder --win nsis"
+  },
+  "devDependencies": {
+    "electron": "^36.2.0",
+    "electron-builder": "^24.13.3",
+    "electron-packager": "^17.1.2",
+    "png-to-ico": "^3.0.1"
+  },
+  "build": {
+    "appId": "com.xiaohui.borderlab",
+    "productName": "Border Lab",
+    "files": [
+      "index.html",
+      "styles.css",
+      "app.js",
+      "main.js",
+      "preload.js",
+      "assets/**/*"
+    ],
+    "directories": {
+      "output": "dist"
+    },
+    "asar": true,
+    "win": {
+      "icon": "assets/app-icon.ico",
+      "signAndEditExecutable": false,
+      "forceCodeSigning": false,
+      "target": [
+        "portable",
+        "nsis"
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    }
+  }
+}

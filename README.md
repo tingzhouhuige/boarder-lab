@@ -36,6 +36,38 @@
 
 如果浏览器支持 `showSaveFilePicker`，导出时可以手动选择保存位置和文件名。
 
+## 桌面版（Electron）
+
+项目已经补好了 Electron 桌面壳，可以打包为 Windows `exe`。
+
+### 安装依赖
+
+```bash
+npm install
+```
+
+### 启动桌面版
+
+```bash
+npm start
+```
+
+### 打包为 exe
+
+生成便携版：
+
+```bash
+npm run dist
+```
+
+生成安装版：
+
+```bash
+npm run dist:installer
+```
+
+打包产物会输出到 `dist/` 目录。
+
 ## 项目结构
 
 ```text
@@ -45,10 +77,13 @@
 │  ├─ template-classic-alt.jpg
 │  └─ template-dark.jpg
 ├─ app.js
+├─ main.js
+├─ preload.js
 ├─ index.html
+├─ package.json
 ├─ styles.css
 ├─ README.md
-├─ RELEASE_NOTES_v1.0.0.md
+├─ RELEASE_NOTES_v1.0.1.md
 └─ GITHUB_RELEASE_GUIDE.md
 ```
 
@@ -68,14 +103,14 @@
 
 推荐每次发布都打一个版本号，例如：
 
-- `v1.0.0`
 - `v1.0.1`
+- `v1.0.2`
 - `v1.1.0`
 
 可参考仓库内的：
 
 - `GITHUB_RELEASE_GUIDE.md`
-- `RELEASE_NOTES_v1.0.0.md`
+- `RELEASE_NOTES_v1.0.1.md`
 
 ### 启用 GitHub Pages
 
