@@ -427,6 +427,15 @@ textarea {
   font-weight: 400;
 }
 
+.quality-control.is-disabled {
+  opacity: 0.56;
+}
+
+.quality-control input[type="range"]:disabled {
+  cursor: not-allowed;
+  filter: grayscale(0.12);
+}
+
 #imageMetaLabel {
   display: inline-flex;
   align-items: center;

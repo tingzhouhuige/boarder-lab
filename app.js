@@ -37,6 +37,7 @@ const emptyState = document.getElementById("emptyState");
 const imageMetaLabel = document.getElementById("imageMetaLabel");
 const exportQualityRange = document.getElementById("exportQualityRange");
 const exportQualityValue = document.getElementById("exportQualityValue");
+const exportQualityControl = document.getElementById("exportQualityControl");
 const exportSizeSelect = document.getElementById("exportSizeSelect");
 const clearPhotoButton = document.getElementById("clearPhotoButton");
 const templateList = document.getElementById("templateList");
@@ -278,6 +279,13 @@ function updateLabels() {
   exportQualityValue.textContent = `${exportQualityRange.value}%`;
 }
 
+function updateExportQualityState() {
+  const isPngExport = exportRounded.checked;
+  exportQualityRange.disabled = isPngExport;
+  exportQualityControl.classList.toggle("is-disabled", isPngExport);
+  exportQualityValue.textContent = isPngExport ? "PNG" : `${exportQualityRange.value}%`;
+}
+
 function getBottomPaddingPercent() {
   return Number(bottomRange.value) * 0.1;
 }
@@ -317,13 +325,14 @@ function resetControls() {
   exportSizeSelect.value = "original";
   useExifDate.checked = true;
   useExifCamera.checked = true;
-  exportRounded.checked = true;
+  exportRounded.checked = false;
   applyTemplate("classic");
   updateExportButtonLabel();
   updateExportButtonText();
   refreshExportButtonText();
   updatePreviewCornerRadius();
   updateLabels();
+  updateExportQualityState();
   syncAllRangeFills();
 }
 
@@ -1230,6 +1239,7 @@ exportRounded.addEventListener("change", () => {
   updateExportButtonText();
   refreshExportButtonText();
   updatePreviewCornerRadius();
+  updateExportQualityState();
 });
 clearPhotoButton.addEventListener("click", clearPhoto);
 exportButton.addEventListener("click", exportImage);
@@ -1279,6 +1289,7 @@ resetControls();
   exportSizeSelect,
 ].forEach(enhanceSelect);
 updateLabels();
+updateExportQualityState();
 updateExportButtonLabel();
 updateExportButtonText();
 refreshExportButtonText();
