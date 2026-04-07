@@ -1167,6 +1167,7 @@ input[type="color"]::-moz-color-swatch {
 
 @media (max-width: 900px) and (orientation: landscape) {
   .app-shell {
+    height: 100dvh;
     grid-template-columns: minmax(320px, 42vw) minmax(0, 1fr);
     gap: 10px;
     padding: 10px;
@@ -1174,7 +1175,7 @@ input[type="color"]::-moz-color-swatch {
 
   .control-panel,
   .preview-shell {
-    height: calc(100vh - 20px);
+    height: calc(100dvh - 20px);
   }
 
   .control-panel-scroll {
@@ -1187,8 +1188,110 @@ input[type="color"]::-moz-color-swatch {
     gap: 12px;
   }
 
+  .preview-shell {
+    padding: 10px 14px 14px;
+    gap: 8px;
+  }
+
+  .panel-header {
+    margin-bottom: 0;
+  }
+
+  .preview-toolbar {
+    gap: 10px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+
+  .quality-control {
+    gap: 8px;
+  }
+
+  .quality-control input[type="range"] {
+    width: 92px;
+  }
+
+  .preview-tool-button,
+  .export-size-control .custom-select-button {
+    min-height: 42px;
+    height: 42px;
+  }
+
+  .preview-icon-button {
+    width: 42px;
+    min-width: 42px;
+    min-height: 42px;
+  }
+
+  .canvas-stage {
+    min-height: 0;
+    padding: 8px;
+  }
+
+  .canvas-frame {
+    padding: 14px;
+    min-height: 220px;
+  }
+
+  .template-selector {
+    min-height: 0;
+    gap: 8px;
+    padding-top: 0;
+  }
+
+  .template-list {
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding-bottom: 8px;
+    scrollbar-width: thin;
+    -webkit-overflow-scrolling: touch;
+    touch-action: pan-x;
+  }
+
+  .template-list::-webkit-scrollbar {
+    height: 8px;
+  }
+
+  .template-list::-webkit-scrollbar-track {
+    background: rgba(0, 0, 0, 0.06);
+    border-radius: 999px;
+  }
+
+  .template-list::-webkit-scrollbar-thumb {
+    background: rgba(0, 0, 0, 0.18);
+    border-radius: 999px;
+  }
+
   .template-card {
-    min-width: 140px;
+    min-width: 116px;
+    flex: 0 0 116px;
+    gap: 8px;
+    padding: 8px;
+  }
+
+  .template-card strong {
+    font-size: 0.9rem;
+  }
+}
+
+@media (max-width: 900px) and (max-height: 520px) and (orientation: landscape) {
+  .app-shell {
+    grid-template-columns: minmax(296px, 40vw) minmax(0, 1fr);
+  }
+
+  .control-panel-scroll {
+    padding: 16px;
+    gap: 16px 10px;
+  }
+
+  .canvas-frame {
+    min-height: 180px;
+    padding: 12px;
+  }
+
+  .template-card {
+    min-width: 108px;
+    flex-basis: 108px;
   }
 }
 
