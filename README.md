@@ -91,7 +91,6 @@ npm run dist:installer
 
 ### 上传仓库
 
-把以下文件上传到 GitHub 仓库根目录：
 
 - `index.html`
 - `styles.css`
@@ -101,7 +100,7 @@ npm run dist:installer
 
 ### 创建 Release
 
-推荐每次发布都打一个版本号，例如：
+每次发布都打一个版本号，例如：
 
 - `v1.0.1`
 - `v1.0.2`
@@ -114,7 +113,6 @@ npm run dist:installer
 
 ### 启用 GitHub Pages
 
-如果你希望用户在线打开：
 
 1. 打开仓库的 `Settings`
 2. 进入 `Pages`
