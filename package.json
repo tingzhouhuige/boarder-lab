@@ -1,14 +1,14 @@
 {
   "name": "border-lab",
   "productName": "Border Lab",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Photo border and EXIF annotation tool for desktop and browser.",
   "main": "main.js",
   "author": "Xiaohui",
   "license": "UNLICENSED",
   "scripts": {
     "start": "electron .",
-    "dist": "electron-packager . \"Border Lab\" --platform=win32 --arch=x64 --out=dist --overwrite --asar --icon=assets/app-icon.ico --ignore=\"^(releases|dist|node_modules\\\\.cache)\"",
+    "dist": "electron-builder --win portable",
     "dist:installer": "electron-builder --win nsis"
   },
   "devDependencies": {

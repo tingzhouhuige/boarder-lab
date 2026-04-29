@@ -1,4 +1,5 @@
 const path = require("path");
+const { pathToFileURL } = require("url");
 const { app, BrowserWindow, dialog, ipcMain } = require("electron");
 const fs = require("fs/promises");
 
@@ -73,7 +74,7 @@ ipcMain.handle("border-lab:open-photo", async () => {
 
   return {
     canceled: false,
-    files: await Promise.all(result.filePaths.map(async (filePath) => {
+    files: result.filePaths.map((filePath) => {
       const extension = path.extname(filePath).toLowerCase();
       const mimeType = {
         ".jpg": "image/jpeg",
@@ -81,14 +82,31 @@ ipcMain.handle("border-lab:open-photo", async () => {
         ".png": "image/png",
         ".webp": "image/webp"
       }[extension] || "application/octet-stream";
-      const data = await fs.readFile(filePath);
 
       return {
         name: path.basename(filePath),
         mimeType,
-        data: Array.from(data)
+        path: filePath,
+        url: pathToFileURL(filePath).href
       };
-    }))
+    })
+  };
+});
+
+ipcMain.handle("border-lab:read-photo-file", async (_event, filePath) => {
+  const extension = path.extname(filePath).toLowerCase();
+  const mimeType = {
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".png": "image/png",
+    ".webp": "image/webp"
+  }[extension] || "application/octet-stream";
+  const data = await fs.readFile(filePath);
+
+  return {
+    name: path.basename(filePath),
+    mimeType,
+    data
   };
 });
 

@@ -1360,6 +1360,8 @@ function updatePhotoList() {
     const image = document.createElement("img");
     image.src = item.url;
     image.alt = "";
+    image.loading = "lazy";
+    image.decoding = "async";
     thumb.appendChild(image);
 
     const meta = document.createElement("span");
@@ -1388,7 +1390,7 @@ function updateImageMetaLabel() {
   imageMetaLabel.textContent = `${batchText}${currentFile.name} · ${currentImage.naturalWidth} × ${currentImage.naturalHeight}`;
 }
 
-function setCurrentPhoto(id) {
+async function setCurrentPhoto(id) {
   saveCurrentPhotoSettings();
   const item = photoItems.find((photo) => photo.id === id);
   if (!item) {
@@ -1408,13 +1410,27 @@ function setCurrentPhoto(id) {
   updateImageMetaLabel();
   resetPreviewViewport();
   renderPreview();
+
+  await Promise.all([
+    ensurePhotoImage(item),
+    ensurePhotoMetadata(item),
+  ]);
+  if (currentPhotoId !== item.id) {
+    return;
+  }
+
+  syncCurrentPhotoState(item);
+  previewCache.delete(item.id);
+  updateImageMetaLabel();
+  resetPreviewViewport();
+  renderPreview();
 }
 
 function clearPhoto() {
   const index = currentPhotoIndex();
   if (index >= 0) {
     const [removed] = photoItems.splice(index, 1);
-    if (removed?.url) {
+    if (removed?.objectUrlOwned && removed.url) {
       URL.revokeObjectURL(removed.url);
     }
     previewCache.delete(removed.id);
@@ -1471,7 +1487,7 @@ async function clearAllPhotos() {
   }
 
   photoItems.forEach((item) => {
-    if (item.url) {
+    if (item.objectUrlOwned && item.url) {
       URL.revokeObjectURL(item.url);
     }
   });
@@ -1504,31 +1520,112 @@ function fileToImage(url) {
   });
 }
 
+async function ensurePhotoImage(item) {
+  if (!item || item.image) {
+    return;
+  }
+  if (!item.imagePromise) {
+    item.imagePromise = fileToImage(item.url)
+      .then((image) => {
+        item.image = image;
+        item.imagePromise = null;
+      })
+      .catch((error) => {
+        item.imagePromise = null;
+        throw error;
+      });
+  }
+  await item.imagePromise;
+}
+
+function arrayBufferFromData(data) {
+  if (!data) {
+    return null;
+  }
+  if (data instanceof ArrayBuffer) {
+    return data;
+  }
+  if (ArrayBuffer.isView(data)) {
+    return data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength);
+  }
+  if (Array.isArray(data)) {
+    return new Uint8Array(data).buffer;
+  }
+  return null;
+}
+
+async function readPhotoBuffer(item) {
+  if (!item) {
+    return null;
+  }
+  if (item.buffer) {
+    return item.buffer;
+  }
+  if (item.desktopPath && window.borderLabDesktop?.readPhotoFile) {
+    const result = await window.borderLabDesktop.readPhotoFile(item.desktopPath);
+    item.buffer = arrayBufferFromData(result?.data);
+    return item.buffer;
+  }
+  if (item.file instanceof File) {
+    item.buffer = await fileToArrayBuffer(item.file);
+    return item.buffer;
+  }
+  return null;
+}
+
+async function ensurePhotoMetadata(item) {
+  if (!item || !item.needsMetadata) {
+    return;
+  }
+  if (!item.metadataPromise) {
+    item.metadataPromise = (async () => {
+      const buffer = await readPhotoBuffer(item);
+      if (buffer) {
+        const exif = parseExif(buffer);
+        item.exif = exif;
+        item.orientation = Number(exif.orientation || 1);
+      }
+      item.needsMetadata = false;
+      item.metadataPromise = null;
+    })().catch((error) => {
+      console.error("Failed to read photo metadata.", error);
+      item.needsMetadata = false;
+      item.metadataPromise = null;
+    });
+  }
+  await item.metadataPromise;
+}
+
 async function loadPhoto(file, options = {}) {
   const shouldActivate = options.activate !== false;
-  const objectUrl = URL.createObjectURL(file);
+  const objectUrl = file.url || URL.createObjectURL(file);
+  const fileInfo = file instanceof File
+    ? file
+    : {
+      name: file.name || "photo",
+      type: file.mimeType || file.type || "application/octet-stream",
+    };
 
   try {
-    const [buffer, image] = await Promise.all([
-      fileToArrayBuffer(file),
-      fileToImage(objectUrl),
-    ]);
-
-    const exif = parseExif(buffer);
     const item = {
       id: nextPhotoId,
-      file,
-      image,
+      file: fileInfo,
+      image: null,
+      imagePromise: null,
       url: objectUrl,
-      exif,
-      orientation: Number(exif.orientation || 1),
-      buffer,
+      objectUrlOwned: !file.url,
+      exif: {},
+      orientation: 1,
+      buffer: arrayBufferFromData(file.data),
+      desktopPath: file.path || "",
+      needsMetadata: true,
+      metadataPromise: null,
       settings: currentDesignSettings(),
     };
     nextPhotoId += 1;
     photoItems.push(item);
     if (shouldActivate) {
-      setCurrentPhoto(item.id);
+      await setCurrentPhoto(item.id);
     } else if (options.updateList !== false) {
       updatePhotoList();
     }
@@ -1543,7 +1640,10 @@ async function loadPhoto(file, options = {}) {
 }
 
 async function handleFiles(fileList) {
-  const files = Array.from(fileList).filter((item) => item.type.startsWith("image/"));
+  const files = Array.from(fileList).filter((item) => {
+    const type = item.type || item.mimeType || "";
+    return type.startsWith("image/");
+  });
   if (!files.length) {
     return;
   }
@@ -1558,21 +1658,27 @@ async function handleFiles(fileList) {
 
   const lastItem = addedItems[addedItems.length - 1];
   if (lastItem) {
-    setCurrentPhoto(lastItem.id);
+    await setCurrentPhoto(lastItem.id);
   } else {
     updatePhotoList();
   }
 }
 
 function desktopPhotoToFile(photo) {
-  if (!photo || photo.canceled || !Array.isArray(photo.data)) {
+  if (!photo || photo.canceled) {
     return null;
   }
-  return new File(
-    [new Uint8Array(photo.data)],
-    photo.name || "photo",
-    { type: photo.mimeType || "application/octet-stream" }
-  );
+  if (photo.path && photo.url) {
+    return photo;
+  }
+  if (photo.data) {
+    return new File(
+      [arrayBufferFromData(photo.data)],
+      photo.name || "photo",
+      { type: photo.mimeType || "application/octet-stream" }
+    );
+  }
+  return null;
 }
 
 function desktopPhotosToFiles(result) {
@@ -1647,7 +1753,20 @@ function canvasToBlob(canvas, mimeType, quality) {
 }
 
 async function createExportBlob() {
-  if (!currentImage || !currentFile) {
+  if (!currentFile) {
+    return null;
+  }
+
+  const currentItem = photoItems.find((item) => item.id === currentPhotoId);
+  if (currentItem) {
+    await Promise.all([
+      ensurePhotoImage(currentItem),
+      ensurePhotoMetadata(currentItem),
+    ]);
+    syncCurrentPhotoState(currentItem);
+  }
+
+  if (!currentImage) {
     return null;
   }
 
@@ -1748,6 +1867,12 @@ async function createExportRecord(item, usedNames) {
   if (!applyAllPhotos.checked && item?.settings) {
     applyDesignSettings(item.settings);
   }
+  currentPhotoId = item.id;
+  syncCurrentPhotoState(item);
+  await Promise.all([
+    ensurePhotoImage(item),
+    ensurePhotoMetadata(item),
+  ]);
   syncCurrentPhotoState(item);
   const blob = await createExportBlob();
   if (!blob) {
