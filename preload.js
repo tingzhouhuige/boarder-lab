@@ -1,11 +1,18 @@
 const { contextBridge, ipcRenderer } = require("electron");
 
+window.addEventListener("DOMContentLoaded", () => {
+  document.body.classList.add("desktop-window");
+});
+
 contextBridge.exposeInMainWorld("borderLabDesktop", {
   openPhoto: async () => {
     return ipcRenderer.invoke("border-lab:open-photo");
   },
   readPhotoFile: async (filePath) => {
     return ipcRenderer.invoke("border-lab:read-photo-file", filePath);
+  },
+  windowControl: async (action) => {
+    return ipcRenderer.invoke("border-lab:window-control", action);
   },
   saveFile: async ({ suggestedName, mimeType, buffer }) => {
     return ipcRenderer.invoke("border-lab:save-file", {

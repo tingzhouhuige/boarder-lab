@@ -35,6 +35,7 @@ function createWindow() {
     minWidth: 1180,
     minHeight: 760,
     autoHideMenuBar: true,
+    frame: false,
     backgroundColor: "#f8f5ef",
     icon: path.join(
       __dirname,
@@ -108,6 +109,25 @@ ipcMain.handle("border-lab:read-photo-file", async (_event, filePath) => {
     mimeType,
     data
   };
+});
+
+ipcMain.handle("border-lab:window-control", (event, action) => {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  if (!win) {
+    return;
+  }
+
+  if (action === "minimize") {
+    win.minimize();
+  } else if (action === "maximize") {
+    if (win.isMaximized()) {
+      win.unmaximize();
+    } else {
+      win.maximize();
+    }
+  } else if (action === "close") {
+    win.close();
+  }
 });
 
 ipcMain.handle("border-lab:save-file", async (_event, payload) => {

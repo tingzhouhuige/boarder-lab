@@ -48,6 +48,7 @@ const infoControlsRow = document.getElementById("infoControlsRow");
 const uploadButton = document.getElementById("uploadButton");
 const photoList = document.getElementById("photoList");
 const photoCountLabel = document.getElementById("photoCountLabel");
+const desktopTitlebar = document.querySelector(".desktop-titlebar");
 const confirmDialog = document.getElementById("confirmDialog");
 const confirmDialogMessage = document.getElementById("confirmDialogMessage");
 const confirmCancelButton = document.getElementById("confirmCancelButton");
@@ -78,6 +79,7 @@ let renderPreviewFrame = null;
 
 const PREVIEW_LONG_SIDE = 2400;
 const MAX_PREVIEW_CACHE_ITEMS = 5;
+const THUMBNAIL_SIZE = 160;
 const previewCache = new Map();
 
 const fontMap = {
@@ -1341,7 +1343,16 @@ function updatePhotoList() {
 
   if (photoList.children.length === photoItems.length) {
     photoList.querySelectorAll(".photo-card").forEach((button) => {
-      button.classList.toggle("active", Number(button.dataset.photoId) === currentPhotoId);
+      const item = photoItems.find((photo) => photo.id === Number(button.dataset.photoId));
+      button.classList.toggle("active", item?.id === currentPhotoId);
+      const image = button.querySelector("img");
+      if (image && item?.thumbnailUrl && image.src !== item.thumbnailUrl) {
+        image.src = item.thumbnailUrl;
+      }
+      const thumb = button.querySelector(".photo-thumb");
+      if (thumb && item?.thumbnailAspectRatio) {
+        thumb.style.aspectRatio = item.thumbnailAspectRatio;
+      }
     });
     return;
   }
@@ -1357,8 +1368,11 @@ function updatePhotoList() {
 
     const thumb = document.createElement("span");
     thumb.className = "photo-thumb";
+    if (item.thumbnailAspectRatio) {
+      thumb.style.aspectRatio = item.thumbnailAspectRatio;
+    }
     const image = document.createElement("img");
-    image.src = item.url;
+    image.src = item.thumbnailUrl || "";
     image.alt = "";
     image.loading = "lazy";
     image.decoding = "async";
@@ -1520,6 +1534,44 @@ function fileToImage(url) {
   });
 }
 
+function createPhotoThumbnail(image, orientation) {
+  const width = THUMBNAIL_SIZE;
+  const height = Math.round(THUMBNAIL_SIZE * 0.75);
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const thumbCtx = canvas.getContext("2d");
+  thumbCtx.imageSmoothingEnabled = true;
+  thumbCtx.imageSmoothingQuality = "medium";
+  thumbCtx.fillStyle = "#f7f4ee";
+  thumbCtx.fillRect(0, 0, width, height);
+  thumbCtx.save();
+  thumbCtx.beginPath();
+  thumbCtx.rect(0, 0, width, height);
+  thumbCtx.clip();
+
+  const rotated = [5, 6, 7, 8].includes(orientation);
+  const sourceWidth = rotated ? image.naturalHeight : image.naturalWidth;
+  const sourceHeight = rotated ? image.naturalWidth : image.naturalHeight;
+  const scale = Math.max(width / sourceWidth, height / sourceHeight);
+  const drawWidth = Math.ceil(sourceWidth * scale);
+  const drawHeight = Math.ceil(sourceHeight * scale);
+  const drawX = Math.floor((width - drawWidth) / 2);
+  const drawY = Math.floor((height - drawHeight) / 2);
+
+  drawImageWithOrientation(
+    thumbCtx,
+    image,
+    { x: drawX, y: drawY, width: drawWidth, height: drawHeight },
+    orientation || 1
+  );
+  thumbCtx.restore();
+  return {
+    url: canvas.toDataURL("image/jpeg", 0.72),
+    aspectRatio: "4 / 3",
+  };
+}
+
 async function ensurePhotoImage(item) {
   if (!item || item.image) {
     return;
@@ -1536,6 +1588,25 @@ async function ensurePhotoImage(item) {
       });
   }
   await item.imagePromise;
+}
+
+async function ensurePhotoThumbnail(item) {
+  if (!item || item.thumbnailUrl) {
+    return;
+  }
+  if (!item.thumbnailPromise) {
+    item.thumbnailPromise = (async () => {
+      await ensurePhotoImage(item);
+      const thumbnail = createPhotoThumbnail(item.image, item.orientation);
+      item.thumbnailUrl = thumbnail.url;
+      item.thumbnailAspectRatio = thumbnail.aspectRatio;
+      item.thumbnailPromise = null;
+    })().catch((error) => {
+      item.thumbnailPromise = null;
+      console.error("Failed to create photo thumbnail.", error);
+    });
+  }
+  await item.thumbnailPromise;
 }
 
 function arrayBufferFromData(data) {
@@ -1614,6 +1685,9 @@ async function loadPhoto(file, options = {}) {
       imagePromise: null,
       url: objectUrl,
       objectUrlOwned: !file.url,
+      thumbnailUrl: "",
+      thumbnailAspectRatio: "",
+      thumbnailPromise: null,
       exif: {},
       orientation: 1,
       buffer: arrayBufferFromData(file.data),
@@ -1624,6 +1698,7 @@ async function loadPhoto(file, options = {}) {
     };
     nextPhotoId += 1;
     photoItems.push(item);
+    ensurePhotoThumbnail(item).then(updatePhotoList);
     if (shouldActivate) {
       await setCurrentPhoto(item.id);
     } else if (options.updateList !== false) {
@@ -1988,6 +2063,13 @@ async function exportAllImages() {
 });
 
 imageInput.addEventListener("change", (event) => handleFiles(event.target.files));
+desktopTitlebar?.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-window-action]");
+  if (!button || !window.borderLabDesktop?.windowControl) {
+    return;
+  }
+  window.borderLabDesktop.windowControl(button.dataset.windowAction);
+});
 uploadButton.addEventListener("click", openPhotoPicker);
 emptyState.addEventListener("click", (event) => {
   event.stopPropagation();
