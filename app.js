@@ -41,12 +41,17 @@ const exportQualityRange = document.getElementById("exportQualityRange");
 const exportQualityValue = document.getElementById("exportQualityValue");
 const exportQualityControl = document.getElementById("exportQualityControl");
 const exportSizeSelect = document.getElementById("exportSizeSelect");
+const clearAllPhotosButton = document.getElementById("clearAllPhotosButton");
 const clearPhotoButton = document.getElementById("clearPhotoButton");
 const templateList = document.getElementById("templateList");
 const infoControlsRow = document.getElementById("infoControlsRow");
 const uploadButton = document.getElementById("uploadButton");
 const photoList = document.getElementById("photoList");
 const photoCountLabel = document.getElementById("photoCountLabel");
+const confirmDialog = document.getElementById("confirmDialog");
+const confirmDialogMessage = document.getElementById("confirmDialogMessage");
+const confirmCancelButton = document.getElementById("confirmCancelButton");
+const confirmOkButton = document.getElementById("confirmOkButton");
 const paperColorSection = paperColor.closest(".panel-section");
 
 const ctx = previewCanvas.getContext("2d");
@@ -814,36 +819,29 @@ function drawImageFillWithOrientation(targetCtx, image, box, orientation) {
 
 function drawYiyinBlurBackground(targetCtx, image, width, height, orientation) {
   const sourceSize = 3025;
-  const colorBlockSize = 112;
   const sourceCanvas = document.createElement("canvas");
-  const colorCanvas = document.createElement("canvas");
   const blurCanvas = document.createElement("canvas");
   const passCanvas = document.createElement("canvas");
   sourceCanvas.width = sourceSize;
   sourceCanvas.height = sourceSize;
-  colorCanvas.width = colorBlockSize;
-  colorCanvas.height = colorBlockSize;
   blurCanvas.width = sourceSize;
   blurCanvas.height = sourceSize;
   passCanvas.width = sourceSize;
   passCanvas.height = sourceSize;
 
   const sourceCtx = sourceCanvas.getContext("2d");
-  const colorCtx = colorCanvas.getContext("2d");
   const blurCtx = blurCanvas.getContext("2d");
   const passCtx = passCanvas.getContext("2d");
   drawImageFillWithOrientation(sourceCtx, image, { x: 0, y: 0, width: sourceSize, height: sourceSize }, orientation);
 
-  colorCtx.imageSmoothingEnabled = true;
-  colorCtx.imageSmoothingQuality = "high";
-  colorCtx.drawImage(sourceCanvas, 0, 0, colorBlockSize, colorBlockSize);
-
   blurCtx.imageSmoothingEnabled = true;
   blurCtx.imageSmoothingQuality = "high";
-  blurCtx.drawImage(colorCanvas, 0, 0, sourceSize, sourceSize);
+  blurCtx.drawImage(sourceCanvas, 0, 0);
 
-  const passes = [88, 72, 52, 34];
-  const bleed = 320;
+  // Yiyin uses: resize 3025x3025 fit:fill -> ffmpeg boxblur=200:2 -> resize final fit:fill.
+  // Canvas has no boxblur, so two strong passes with edge bleed are the closest browser-side match.
+  const passes = [120, 120];
+  const bleed = 420;
   passes.forEach((radius) => {
     passCtx.clearRect(0, 0, sourceSize, sourceSize);
     passCtx.save();
@@ -1427,6 +1425,67 @@ function clearPhoto() {
   setCurrentPhoto(nextItem?.id || null);
 }
 
+function showConfirmDialog(message) {
+  return new Promise((resolve) => {
+    confirmDialogMessage.textContent = message;
+    confirmDialog.classList.remove("hidden");
+
+    const close = (result) => {
+      confirmDialog.classList.add("hidden");
+      confirmOkButton.removeEventListener("click", handleOk);
+      confirmCancelButton.removeEventListener("click", handleCancel);
+      confirmDialog.removeEventListener("click", handleBackdrop);
+      document.removeEventListener("keydown", handleKeydown);
+      resolve(result);
+    };
+
+    const handleOk = () => close(true);
+    const handleCancel = () => close(false);
+    const handleBackdrop = (event) => {
+      if (event.target === confirmDialog) {
+        close(false);
+      }
+    };
+    const handleKeydown = (event) => {
+      if (event.key === "Escape") {
+        close(false);
+      }
+    };
+
+    confirmOkButton.addEventListener("click", handleOk);
+    confirmCancelButton.addEventListener("click", handleCancel);
+    confirmDialog.addEventListener("click", handleBackdrop);
+    document.addEventListener("keydown", handleKeydown);
+    confirmOkButton.focus();
+  });
+}
+
+async function clearAllPhotos() {
+  if (!photoItems.length) {
+    return;
+  }
+
+  const confirmed = await showConfirmDialog("确定要删除已导入的全部照片吗？");
+  if (!confirmed) {
+    return;
+  }
+
+  photoItems.forEach((item) => {
+    if (item.url) {
+      URL.revokeObjectURL(item.url);
+    }
+  });
+  photoItems = [];
+  currentPhotoId = null;
+  previewCache.clear();
+  imageInput.value = "";
+  syncCurrentPhotoState(null);
+  updatePhotoList();
+  updateImageMetaLabel();
+  resetPreviewViewport();
+  renderPreview();
+}
+
 function fileToArrayBuffer(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -1887,6 +1946,7 @@ applyAllPhotos.addEventListener("change", () => {
   }
   scheduleRenderPreview();
 });
+clearAllPhotosButton.addEventListener("click", clearAllPhotos);
 clearPhotoButton.addEventListener("click", clearPhoto);
 exportButton.addEventListener("click", exportImage);
 exportAllButton.addEventListener("click", exportAllImages);

@@ -190,6 +190,9 @@
         <div class="panel-header">
           <span class="preview-heading">实时预览</span>
           <div class="preview-toolbar">
+            <button id="clearAllPhotosButton" class="preview-tool-button preview-icon-button clear-all-button" type="button" aria-label="删除全部照片" title="删除全部照片">
+              <span class="clear-all-icon" aria-hidden="true"></span>
+            </button>
             <button id="clearPhotoButton" class="preview-tool-button preview-icon-button" type="button" aria-label="删除照片" title="删除照片">
               <span class="trash-icon" aria-hidden="true"></span>
             </button>
@@ -274,6 +277,17 @@
         </section>
       </section>
     </main>
+  </div>
+
+  <div id="confirmDialog" class="dialog-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="confirmDialogTitle">
+    <div class="confirm-dialog">
+      <h2 id="confirmDialogTitle">删除全部照片</h2>
+      <p id="confirmDialogMessage">确定要删除已导入的全部照片吗？</p>
+      <div class="confirm-dialog-actions">
+        <button id="confirmCancelButton" class="dialog-button secondary" type="button">取消</button>
+        <button id="confirmOkButton" class="dialog-button primary" type="button">确定</button>
+      </div>
+    </div>
   </div>
 
   <script src="app.js"></script>
