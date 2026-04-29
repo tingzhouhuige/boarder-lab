@@ -27,7 +27,9 @@ const cornerRadiusValue = document.getElementById("cornerRadiusValue");
 const useExifDate = document.getElementById("useExifDate");
 const useExifCamera = document.getElementById("useExifCamera");
 const exportRounded = document.getElementById("exportRounded");
+const applyAllPhotos = document.getElementById("applyAllPhotos");
 const exportButton = document.getElementById("exportButton");
+const exportAllButton = document.getElementById("exportAllButton");
 const resetButton = document.getElementById("resetButton");
 const previewCanvas = document.getElementById("previewCanvas");
 const dropZone = document.getElementById("dropZone");
@@ -42,6 +44,9 @@ const exportSizeSelect = document.getElementById("exportSizeSelect");
 const clearPhotoButton = document.getElementById("clearPhotoButton");
 const templateList = document.getElementById("templateList");
 const infoControlsRow = document.getElementById("infoControlsRow");
+const uploadButton = document.getElementById("uploadButton");
+const photoList = document.getElementById("photoList");
+const photoCountLabel = document.getElementById("photoCountLabel");
 const paperColorSection = paperColor.closest(".panel-section");
 
 const ctx = previewCanvas.getContext("2d");
@@ -60,6 +65,15 @@ let previewDragStartX = 0;
 let previewDragStartY = 0;
 let previewDragOriginX = 0;
 let previewDragOriginY = 0;
+let photoItems = [];
+let currentPhotoId = null;
+let nextPhotoId = 1;
+let previewWarmupHandle = null;
+let renderPreviewFrame = null;
+
+const PREVIEW_LONG_SIDE = 2400;
+const MAX_PREVIEW_CACHE_ITEMS = 5;
+const previewCache = new Map();
 
 const fontMap = {
   yahei: '"Microsoft YaHei UI", "Microsoft YaHei", sans-serif',
@@ -326,6 +340,7 @@ function resetControls() {
   useExifDate.checked = true;
   useExifCamera.checked = true;
   exportRounded.checked = false;
+  applyAllPhotos.checked = true;
   applyTemplate("classic");
   updateExportButtonLabel();
   updateExportButtonText();
@@ -397,6 +412,7 @@ function resetPreviewViewport() {
 
 function refreshExportButtonText() {
   exportButton.textContent = exportRounded.checked ? "导出 PNG（圆角）" : "导出 JPG";
+  exportAllButton.textContent = exportRounded.checked ? "全部导出 PNG" : "全部导出 JPG";
 }
 
 function formatDate(value) {
@@ -756,6 +772,122 @@ function roundedRectPath(targetCtx, x, y, width, height, radius) {
   targetCtx.closePath();
 }
 
+function drawImageFillWithOrientation(targetCtx, image, box, orientation) {
+  targetCtx.save();
+  targetCtx.beginPath();
+  targetCtx.rect(box.x, box.y, box.width, box.height);
+  targetCtx.clip();
+
+  const rotated = [5, 6, 7, 8].includes(orientation);
+  const sourceWidth = rotated ? image.naturalHeight : image.naturalWidth;
+  const sourceHeight = rotated ? image.naturalWidth : image.naturalHeight;
+  const scaleX = box.width / sourceWidth;
+  const scaleY = box.height / sourceHeight;
+
+  if (orientation === 6) {
+    targetCtx.translate(box.x + box.width, box.y);
+    targetCtx.rotate(Math.PI / 2);
+    targetCtx.scale(scaleY, scaleX);
+    targetCtx.drawImage(image, 0, -image.naturalHeight, image.naturalWidth, image.naturalHeight);
+  } else if (orientation === 8) {
+    targetCtx.translate(box.x, box.y + box.height);
+    targetCtx.rotate(-Math.PI / 2);
+    targetCtx.scale(scaleY, scaleX);
+    targetCtx.drawImage(image, -image.naturalWidth, 0, image.naturalWidth, image.naturalHeight);
+  } else if (orientation === 3) {
+    targetCtx.translate(box.x + box.width, box.y + box.height);
+    targetCtx.rotate(Math.PI);
+    targetCtx.scale(scaleX, scaleY);
+    targetCtx.drawImage(image, 0, 0, image.naturalWidth, image.naturalHeight);
+  } else if (orientation === 2) {
+    targetCtx.translate(box.x + box.width, box.y);
+    targetCtx.scale(-scaleX, scaleY);
+    targetCtx.drawImage(image, 0, 0, image.naturalWidth, image.naturalHeight);
+  } else {
+    targetCtx.translate(box.x, box.y);
+    targetCtx.scale(scaleX, scaleY);
+    targetCtx.drawImage(image, 0, 0, image.naturalWidth, image.naturalHeight);
+  }
+
+  targetCtx.restore();
+}
+
+function drawYiyinBlurBackground(targetCtx, image, width, height, orientation) {
+  const sourceSize = 3025;
+  const colorBlockSize = 112;
+  const sourceCanvas = document.createElement("canvas");
+  const colorCanvas = document.createElement("canvas");
+  const blurCanvas = document.createElement("canvas");
+  const passCanvas = document.createElement("canvas");
+  sourceCanvas.width = sourceSize;
+  sourceCanvas.height = sourceSize;
+  colorCanvas.width = colorBlockSize;
+  colorCanvas.height = colorBlockSize;
+  blurCanvas.width = sourceSize;
+  blurCanvas.height = sourceSize;
+  passCanvas.width = sourceSize;
+  passCanvas.height = sourceSize;
+
+  const sourceCtx = sourceCanvas.getContext("2d");
+  const colorCtx = colorCanvas.getContext("2d");
+  const blurCtx = blurCanvas.getContext("2d");
+  const passCtx = passCanvas.getContext("2d");
+  drawImageFillWithOrientation(sourceCtx, image, { x: 0, y: 0, width: sourceSize, height: sourceSize }, orientation);
+
+  colorCtx.imageSmoothingEnabled = true;
+  colorCtx.imageSmoothingQuality = "high";
+  colorCtx.drawImage(sourceCanvas, 0, 0, colorBlockSize, colorBlockSize);
+
+  blurCtx.imageSmoothingEnabled = true;
+  blurCtx.imageSmoothingQuality = "high";
+  blurCtx.drawImage(colorCanvas, 0, 0, sourceSize, sourceSize);
+
+  const passes = [88, 72, 52, 34];
+  const bleed = 320;
+  passes.forEach((radius) => {
+    passCtx.clearRect(0, 0, sourceSize, sourceSize);
+    passCtx.save();
+    passCtx.filter = `blur(${radius}px)`;
+    passCtx.drawImage(blurCanvas, -bleed, -bleed, sourceSize + bleed * 2, sourceSize + bleed * 2);
+    passCtx.restore();
+
+    blurCtx.clearRect(0, 0, sourceSize, sourceSize);
+    blurCtx.drawImage(passCanvas, 0, 0);
+  });
+
+  targetCtx.drawImage(blurCanvas, 0, 0, width, height);
+}
+
+function averageCanvasBrightness(targetCtx, width, height) {
+  const sampleSize = 64;
+  const sampleCanvas = document.createElement("canvas");
+  sampleCanvas.width = sampleSize;
+  sampleCanvas.height = sampleSize;
+  const sampleCtx = sampleCanvas.getContext("2d");
+  sampleCtx.drawImage(targetCtx.canvas, 0, 0, width, height, 0, 0, sampleSize, sampleSize);
+  const data = sampleCtx.getImageData(0, 0, sampleSize, sampleSize).data;
+  let total = 0;
+
+  for (let i = 0; i < data.length; i += 4) {
+    total += (data[i] + data[i + 1] + data[i + 2]) / 3;
+  }
+
+  return total / (sampleSize * sampleSize);
+}
+
+function yiyinOverlayColor(brightness) {
+  if (brightness < 15) {
+    return "rgba(180, 180, 180, 0.2)";
+  }
+  if (brightness < 20) {
+    return "rgba(158, 158, 158, 0.2)";
+  }
+  if (brightness < 40) {
+    return "rgba(128, 128, 128, 0.2)";
+  }
+  return "rgba(0, 0, 0, 0.2)";
+}
+
 function scaledImageSize() {
   return scaledImageSizeForMaxLongSide(2400);
 }
@@ -813,82 +945,20 @@ function renderGalleryDarkFrame(targetCanvas, maxLongSide, roundedCorners) {
     targetCtx.clip();
   }
 
-  targetCtx.fillStyle = paperColor.value;
+  drawYiyinBlurBackground(targetCtx, currentImage, outputWidth, outputHeight, currentOrientation);
+  targetCtx.fillStyle = yiyinOverlayColor(averageCanvasBrightness(targetCtx, outputWidth, outputHeight));
   targetCtx.fillRect(0, 0, outputWidth, outputHeight);
 
   targetCtx.save();
-  targetCtx.filter = `blur(${Math.max(52, Math.round(outputWidth * 0.036))}px) saturate(0.88) brightness(0.74)`;
-  drawImageCoverWithOrientation(
-    targetCtx,
-    currentImage,
-    {
-      x: -outerPadding,
-      y: -outerPadding,
-      width: outputWidth + outerPadding * 2,
-      height: outputHeight + outerPadding * 2,
-    },
-    currentOrientation
-  );
-  targetCtx.restore();
-
-  targetCtx.save();
-  targetCtx.globalAlpha = 0.32;
-  targetCtx.filter = `blur(${Math.max(18, Math.round(outputWidth * 0.013))}px) saturate(1.04) brightness(0.94)`;
-  drawImageCoverWithOrientation(
-    targetCtx,
-    currentImage,
-    {
-      x: -outerPadding,
-      y: -outerPadding,
-      width: outputWidth + outerPadding * 2,
-      height: outputHeight + outerPadding * 2,
-    },
-    currentOrientation
-  );
-  targetCtx.restore();
-
-  const backgroundGradient = targetCtx.createLinearGradient(0, 0, 0, outputHeight);
-  backgroundGradient.addColorStop(0, "rgba(34, 37, 34, 0.18)");
-  backgroundGradient.addColorStop(0.42, "rgba(39, 42, 39, 0.34)");
-  backgroundGradient.addColorStop(1, "rgba(24, 27, 24, 0.48)");
-  targetCtx.fillStyle = backgroundGradient;
-  targetCtx.fillRect(0, 0, outputWidth, outputHeight);
-
-  const topGlow = targetCtx.createRadialGradient(
-    outputWidth * 0.5,
-    outputHeight * 0.12,
-    0,
-    outputWidth * 0.5,
-    outputHeight * 0.12,
-    outputWidth * 0.65
-  );
-  topGlow.addColorStop(0, "rgba(255, 236, 180, 0.16)");
-  topGlow.addColorStop(0.42, "rgba(255, 236, 180, 0.05)");
-  topGlow.addColorStop(1, "rgba(255, 236, 180, 0)");
-  targetCtx.fillStyle = topGlow;
-  targetCtx.fillRect(0, 0, outputWidth, outputHeight);
-
-  const vignette = targetCtx.createRadialGradient(
-    outputWidth * 0.5,
-    outputHeight * 0.42,
-    outputWidth * 0.18,
-    outputWidth * 0.5,
-    outputHeight * 0.42,
-    outputWidth * 0.78
-  );
-  vignette.addColorStop(0, "rgba(0, 0, 0, 0)");
-  vignette.addColorStop(0.72, "rgba(0, 0, 0, 0.08)");
-  vignette.addColorStop(1, "rgba(0, 0, 0, 0.24)");
-  targetCtx.fillStyle = vignette;
-  targetCtx.fillRect(0, 0, outputWidth, outputHeight);
-
-  targetCtx.save();
-  targetCtx.shadowColor = "rgba(0, 0, 0, 0.42)";
-  targetCtx.shadowBlur = Math.round(outputWidth * 0.055);
+  targetCtx.shadowColor = "rgba(0, 0, 0, 1)";
+  targetCtx.shadowBlur = Math.ceil(imageBox.height * 0.06);
   targetCtx.shadowOffsetX = 0;
-  targetCtx.shadowOffsetY = Math.round(outputWidth * 0.015);
-  targetCtx.fillStyle = "rgba(255, 255, 255, 0.001)";
-  targetCtx.fillRect(imageBox.x, imageBox.y, imageBox.width, imageBox.height);
+  targetCtx.shadowOffsetY = 0;
+  targetCtx.fillStyle = "#000";
+  targetCtx.fillRect(imageBox.x + 1, imageBox.y, imageBox.width - 2, imageBox.height - 2);
+  targetCtx.restore();
+
+  targetCtx.save();
   drawImageWithOrientation(targetCtx, currentImage, imageBox, currentOrientation);
   targetCtx.restore();
 
@@ -1004,22 +1074,357 @@ function renderFrame(targetCanvas, maxLongSide = 2400, options = {}) {
   emptyState.classList.add("hidden");
 }
 
+function previewRenderKey() {
+  return [
+    currentTemplate,
+    borderRange.value,
+    bottomRange.value,
+    paperColor.value,
+    textColor.value,
+    headlineInput.value,
+    sublineInput.value,
+    headlineFontSelect.value,
+    sublineFontSelect.value,
+    infoFontSelect.value,
+    headlineSizeRange.value,
+    sublineSizeRange.value,
+    infoSizeRange.value,
+    headlineOffsetRange.value,
+    sublineOffsetRange.value,
+    infoOffsetRange.value,
+    cornerRadiusRange.value,
+    useExifDate.checked ? "date" : "no-date",
+    useExifCamera.checked ? "camera" : "no-camera",
+    exportRounded.checked ? "rounded" : "square",
+  ].join("|");
+}
+
+function prunePreviewCache() {
+  while (previewCache.size > MAX_PREVIEW_CACHE_ITEMS) {
+    let oldestId = null;
+    let oldestUsedAt = Number.POSITIVE_INFINITY;
+    previewCache.forEach((entry, id) => {
+      if (entry.usedAt < oldestUsedAt) {
+        oldestUsedAt = entry.usedAt;
+        oldestId = id;
+      }
+    });
+    if (oldestId === null) {
+      return;
+    }
+    previewCache.delete(oldestId);
+  }
+}
+
+function copyCanvas(sourceCanvas, targetCanvas) {
+  targetCanvas.width = sourceCanvas.width;
+  targetCanvas.height = sourceCanvas.height;
+  const targetCtx = targetCanvas.getContext("2d");
+  targetCtx.clearRect(0, 0, targetCanvas.width, targetCanvas.height);
+  targetCtx.drawImage(sourceCanvas, 0, 0);
+  emptyState.classList.add("hidden");
+}
+
+function cacheCurrentPreview(key) {
+  if (!currentPhotoId || !currentImage) {
+    return;
+  }
+  const cachedCanvas = document.createElement("canvas");
+  cachedCanvas.width = previewCanvas.width;
+  cachedCanvas.height = previewCanvas.height;
+  cachedCanvas.getContext("2d").drawImage(previewCanvas, 0, 0);
+  previewCache.set(currentPhotoId, {
+    key,
+    canvas: cachedCanvas,
+    usedAt: Date.now(),
+  });
+  prunePreviewCache();
+}
+
 function renderPreview() {
-  renderFrame(previewCanvas, 2400);
+  if (renderPreviewFrame !== null) {
+    window.cancelAnimationFrame(renderPreviewFrame);
+  }
+  renderPreviewFrame = null;
+  const key = previewRenderKey();
+  const cached = currentPhotoId ? previewCache.get(currentPhotoId) : null;
+  if (cached?.key === key) {
+    cached.usedAt = Date.now();
+    copyCanvas(cached.canvas, previewCanvas);
+  } else {
+    renderFrame(previewCanvas, PREVIEW_LONG_SIDE);
+    cacheCurrentPreview(key);
+  }
   updatePreviewCornerRadius();
   applyPreviewViewport();
 }
 
-function clearPhoto() {
-  currentFile = null;
-  currentImage = null;
-  currentExif = {};
-  currentOrientation = 1;
-  currentFileBuffer = null;
-  imageInput.value = "";
-  imageMetaLabel.textContent = "未载入照片";
+function scheduleRenderPreview() {
+  if (renderPreviewFrame !== null) {
+    return;
+  }
+  renderPreviewFrame = window.requestAnimationFrame(renderPreview);
+}
+
+function renderPreviewCacheForItem(item, key) {
+  const previousState = {
+    file: currentFile,
+    image: currentImage,
+    exif: currentExif,
+    orientation: currentOrientation,
+    buffer: currentFileBuffer,
+  };
+  const cachedCanvas = document.createElement("canvas");
+
+  syncCurrentPhotoState(item);
+  renderFrame(cachedCanvas, PREVIEW_LONG_SIDE);
+  previewCache.set(item.id, {
+    key,
+    canvas: cachedCanvas,
+    usedAt: Date.now() - 1,
+  });
+  prunePreviewCache();
+
+  currentFile = previousState.file;
+  currentImage = previousState.image;
+  currentExif = previousState.exif;
+  currentOrientation = previousState.orientation;
+  currentFileBuffer = previousState.buffer;
+}
+
+function schedulePreviewWarmup() {
+  if (previewWarmupHandle) {
+    return;
+  }
+
+  const schedule = window.requestIdleCallback || ((callback) => window.setTimeout(() => callback({ timeRemaining: () => 8 }), 120));
+
+  previewWarmupHandle = schedule((deadline) => {
+    previewWarmupHandle = null;
+    const key = previewRenderKey();
+    const item = photoItems.find((photo) => {
+      const cached = previewCache.get(photo.id);
+      return photo.id !== currentPhotoId && cached?.key !== key;
+    });
+
+    if (!item || deadline.timeRemaining() < 4) {
+      if (item) {
+        schedulePreviewWarmup();
+      }
+      return;
+    }
+
+    renderPreviewCacheForItem(item, key);
+    if (photoItems.some((photo) => photo.id !== currentPhotoId && previewCache.get(photo.id)?.key !== key)) {
+      schedulePreviewWarmup();
+    }
+  });
+}
+
+function currentPhotoIndex() {
+  return photoItems.findIndex((item) => item.id === currentPhotoId);
+}
+
+function syncCurrentPhotoState(item) {
+  currentFile = item?.file || null;
+  currentImage = item?.image || null;
+  currentExif = item?.exif || {};
+  currentOrientation = item?.orientation || 1;
+  currentFileBuffer = item?.buffer || null;
+}
+
+function currentDesignSettings() {
+  return {
+    template: currentTemplate,
+    border: borderRange.value,
+    bottom: bottomRange.value,
+    paperColor: paperColor.value,
+    textColor: textColor.value,
+    headline: headlineInput.value,
+    subline: sublineInput.value,
+    headlineFont: headlineFontSelect.value,
+    sublineFont: sublineFontSelect.value,
+    infoFont: infoFontSelect.value,
+    headlineSize: headlineSizeRange.value,
+    sublineSize: sublineSizeRange.value,
+    infoSize: infoSizeRange.value,
+    headlineOffset: headlineOffsetRange.value,
+    sublineOffset: sublineOffsetRange.value,
+    infoOffset: infoOffsetRange.value,
+    cornerRadius: cornerRadiusRange.value,
+    useExifDate: useExifDate.checked,
+    useExifCamera: useExifCamera.checked,
+    exportRounded: exportRounded.checked,
+  };
+}
+
+function applyDesignSettings(settings) {
+  if (!settings) {
+    return;
+  }
+
+  const templateName = settings.template || currentTemplate;
+  const isYiyinTemplate = templateName === "galleryDark" || templateName === "galleryDarkPortrait";
+  currentTemplate = templateName;
+  infoControlsRow.classList.toggle("template-hidden", isYiyinTemplate);
+  paperColorSection.classList.toggle("template-hidden", isYiyinTemplate);
+  templateList.querySelectorAll(".template-card").forEach((button) => {
+    button.classList.toggle("active", button.dataset.template === templateName);
+  });
+
+  borderRange.value = settings.border ?? borderRange.value;
+  bottomRange.value = settings.bottom ?? bottomRange.value;
+  paperColor.value = settings.paperColor ?? paperColor.value;
+  textColor.value = settings.textColor ?? textColor.value;
+  headlineInput.value = settings.headline ?? "";
+  sublineInput.value = settings.subline ?? "";
+  headlineFontSelect.value = settings.headlineFont ?? headlineFontSelect.value;
+  sublineFontSelect.value = settings.sublineFont ?? sublineFontSelect.value;
+  infoFontSelect.value = settings.infoFont ?? infoFontSelect.value;
+  headlineSizeRange.value = settings.headlineSize ?? headlineSizeRange.value;
+  sublineSizeRange.value = settings.sublineSize ?? sublineSizeRange.value;
+  infoSizeRange.value = settings.infoSize ?? infoSizeRange.value;
+  headlineOffsetRange.value = settings.headlineOffset ?? headlineOffsetRange.value;
+  sublineOffsetRange.value = settings.sublineOffset ?? sublineOffsetRange.value;
+  infoOffsetRange.value = settings.infoOffset ?? infoOffsetRange.value;
+  cornerRadiusRange.value = settings.cornerRadius ?? cornerRadiusRange.value;
+  useExifDate.checked = settings.useExifDate ?? useExifDate.checked;
+  useExifCamera.checked = settings.useExifCamera ?? useExifCamera.checked;
+  exportRounded.checked = settings.exportRounded ?? exportRounded.checked;
+
+  updateLabels();
+  updateExportQualityState();
+  updateExportButtonLabel();
+  updateExportButtonText();
+  refreshExportButtonText();
+  syncAllRangeFills();
+}
+
+function saveCurrentPhotoSettings() {
+  if (!currentPhotoId) {
+    return;
+  }
+
+  const item = photoItems.find((photo) => photo.id === currentPhotoId);
+  if (item) {
+    item.settings = currentDesignSettings();
+  }
+}
+
+function applyPhotoSettings(item) {
+  if (applyAllPhotos.checked || !item?.settings) {
+    return;
+  }
+
+  applyDesignSettings(item.settings);
+}
+
+function syncAllPhotoSettings() {
+  const settings = currentDesignSettings();
+  photoItems.forEach((item) => {
+    item.settings = { ...settings };
+  });
+  previewCache.clear();
+}
+
+function handleDesignSettingsChange() {
+  if (applyAllPhotos.checked) {
+    syncAllPhotoSettings();
+  } else {
+    saveCurrentPhotoSettings();
+    if (currentPhotoId) {
+      previewCache.delete(currentPhotoId);
+    }
+  }
+}
+
+function updatePhotoList() {
+  photoCountLabel.textContent = String(photoItems.length);
+
+  if (photoList.children.length === photoItems.length) {
+    photoList.querySelectorAll(".photo-card").forEach((button) => {
+      button.classList.toggle("active", Number(button.dataset.photoId) === currentPhotoId);
+    });
+    return;
+  }
+
+  photoList.innerHTML = "";
+
+  photoItems.forEach((item, index) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "photo-card";
+    button.classList.toggle("active", item.id === currentPhotoId);
+    button.dataset.photoId = String(item.id);
+
+    const thumb = document.createElement("span");
+    thumb.className = "photo-thumb";
+    const image = document.createElement("img");
+    image.src = item.url;
+    image.alt = "";
+    thumb.appendChild(image);
+
+    const meta = document.createElement("span");
+    meta.className = "photo-card-meta";
+    const number = document.createElement("strong");
+    number.textContent = String(index + 1).padStart(2, "0");
+    const name = document.createElement("span");
+    name.textContent = item.file.name;
+    meta.appendChild(number);
+    meta.appendChild(name);
+
+    button.appendChild(thumb);
+    button.appendChild(meta);
+    photoList.appendChild(button);
+  });
+}
+
+function updateImageMetaLabel() {
+  const index = currentPhotoIndex();
+  if (!currentImage || !currentFile || index < 0) {
+    imageMetaLabel.textContent = "未载入照片";
+    return;
+  }
+
+  const batchText = photoItems.length > 1 ? `${index + 1}/${photoItems.length} · ` : "";
+  imageMetaLabel.textContent = `${batchText}${currentFile.name} · ${currentImage.naturalWidth} × ${currentImage.naturalHeight}`;
+}
+
+function setCurrentPhoto(id) {
+  saveCurrentPhotoSettings();
+  const item = photoItems.find((photo) => photo.id === id);
+  if (!item) {
+    currentPhotoId = null;
+    syncCurrentPhotoState(null);
+    updatePhotoList();
+    updateImageMetaLabel();
+    resetPreviewViewport();
+    renderPreview();
+    return;
+  }
+
+  currentPhotoId = item.id;
+  syncCurrentPhotoState(item);
+  applyPhotoSettings(item);
+  updatePhotoList();
+  updateImageMetaLabel();
   resetPreviewViewport();
   renderPreview();
+}
+
+function clearPhoto() {
+  const index = currentPhotoIndex();
+  if (index >= 0) {
+    const [removed] = photoItems.splice(index, 1);
+    if (removed?.url) {
+      URL.revokeObjectURL(removed.url);
+    }
+    previewCache.delete(removed.id);
+  }
+
+  imageInput.value = "";
+  const nextItem = photoItems[Math.min(index, photoItems.length - 1)] || null;
+  setCurrentPhoto(nextItem?.id || null);
 }
 
 function fileToArrayBuffer(file) {
@@ -1040,8 +1445,8 @@ function fileToImage(url) {
   });
 }
 
-async function loadPhoto(file) {
-  currentFile = file;
+async function loadPhoto(file, options = {}) {
+  const shouldActivate = options.activate !== false;
   const objectUrl = URL.createObjectURL(file);
 
   try {
@@ -1050,100 +1455,317 @@ async function loadPhoto(file) {
       fileToImage(objectUrl),
     ]);
 
-    currentExif = parseExif(buffer);
-    currentFileBuffer = buffer;
-    currentOrientation = Number(currentExif.orientation || 1);
-    currentImage = image;
-    resetPreviewViewport();
-
-    imageMetaLabel.textContent = `${file.name} · ${image.naturalWidth} × ${image.naturalHeight}`;
-    renderPreview();
+    const exif = parseExif(buffer);
+    const item = {
+      id: nextPhotoId,
+      file,
+      image,
+      url: objectUrl,
+      exif,
+      orientation: Number(exif.orientation || 1),
+      buffer,
+      settings: currentDesignSettings(),
+    };
+    nextPhotoId += 1;
+    photoItems.push(item);
+    if (shouldActivate) {
+      setCurrentPhoto(item.id);
+    } else if (options.updateList !== false) {
+      updatePhotoList();
+    }
+    return item;
   } catch {
-    currentExif = {};
-    currentFileBuffer = null;
-    currentOrientation = 1;
-    currentImage = null;
+    URL.revokeObjectURL(objectUrl);
+    syncCurrentPhotoState(null);
     resetPreviewViewport();
     imageMetaLabel.textContent = "载入失败";
     renderPreview();
-  } finally {
-    URL.revokeObjectURL(objectUrl);
   }
 }
 
-function handleFiles(fileList) {
-  const file = Array.from(fileList).find((item) => item.type.startsWith("image/"));
-  if (file) {
-    loadPhoto(file);
-  }
-}
-
-function exportImage() {
-  if (!currentImage || !currentFile) {
+async function handleFiles(fileList) {
+  const files = Array.from(fileList).filter((item) => item.type.startsWith("image/"));
+  if (!files.length) {
     return;
   }
-  const baseName = currentFile.name.replace(/\.[^.]+$/, "");
+
+  const addedItems = [];
+  for (const file of files) {
+    const item = await loadPhoto(file, { activate: false, updateList: false });
+    if (item) {
+      addedItems.push(item);
+    }
+  }
+
+  const lastItem = addedItems[addedItems.length - 1];
+  if (lastItem) {
+    setCurrentPhoto(lastItem.id);
+  } else {
+    updatePhotoList();
+  }
+}
+
+function desktopPhotoToFile(photo) {
+  if (!photo || photo.canceled || !Array.isArray(photo.data)) {
+    return null;
+  }
+  return new File(
+    [new Uint8Array(photo.data)],
+    photo.name || "photo",
+    { type: photo.mimeType || "application/octet-stream" }
+  );
+}
+
+function desktopPhotosToFiles(result) {
+  if (!result || result.canceled || !Array.isArray(result.files)) {
+    const file = desktopPhotoToFile(result);
+    return file ? [file] : [];
+  }
+  return result.files.map(desktopPhotoToFile).filter(Boolean);
+}
+
+async function openPhotoPicker() {
+  if (window.borderLabDesktop?.openPhoto) {
+    try {
+      const result = await window.borderLabDesktop.openPhoto();
+      const files = desktopPhotosToFiles(result);
+      await handleFiles(files);
+      return;
+    } catch (error) {
+      console.error("Failed to open desktop photo picker.", error);
+    }
+  }
+
+  if ("showOpenFilePicker" in window) {
+    try {
+      const handles = await window.showOpenFilePicker({
+        id: "border-lab-import-photo",
+        multiple: true,
+        types: [
+          {
+            description: "Images",
+            accept: {
+              "image/jpeg": [".jpg", ".jpeg"],
+              "image/png": [".png"],
+              "image/webp": [".webp"],
+            },
+          },
+        ],
+      });
+      await handleFiles(await Promise.all(handles.map((handle) => handle.getFile())));
+      return;
+    } catch (error) {
+      if (error && error.name === "AbortError") {
+        return;
+      }
+      console.error("Failed to open browser photo picker.", error);
+    }
+  }
+
+  imageInput.click();
+}
+
+function exportFileNameFor(file, usedNames) {
+  const baseName = file.name.replace(/\.[^.]+$/, "");
   const shouldExportRounded = exportRounded.checked;
-  const fileName = `${baseName}.${shouldExportRounded ? "png" : "jpg"}`;
+  const extension = shouldExportRounded ? "png" : "jpg";
+  let fileName = `${baseName}.${extension}`;
+  let counter = 2;
+
+  while (usedNames?.has(fileName.toLowerCase())) {
+    fileName = `${baseName}-${counter}.${extension}`;
+    counter += 1;
+  }
+
+  usedNames?.add(fileName.toLowerCase());
+  return fileName;
+}
+
+function canvasToBlob(canvas, mimeType, quality) {
+  return new Promise((resolve) => {
+    canvas.toBlob(resolve, mimeType, quality);
+  });
+}
+
+async function createExportBlob() {
+  if (!currentImage || !currentFile) {
+    return null;
+  }
+
+  const shouldExportRounded = exportRounded.checked;
   const quality = Number(exportQualityRange.value) / 100;
   const exportMaxLongSide = exportSizeSelect.value === "original"
     ? Number.POSITIVE_INFINITY
     : Number(exportSizeSelect.value);
   const exportCanvas = document.createElement("canvas");
   renderFrame(exportCanvas, exportMaxLongSide, { roundedCorners: shouldExportRounded });
+  const blob = await canvasToBlob(
+    exportCanvas,
+    shouldExportRounded ? "image/png" : "image/jpeg",
+    shouldExportRounded ? undefined : quality
+  );
 
-  exportCanvas.toBlob(async (blob) => {
-    if (!blob) {
+  if (!blob) {
+    return null;
+  }
+
+  if (!shouldExportRounded && currentFile?.type === "image/jpeg" && currentFileBuffer) {
+    return mergeExifIntoJpegBlob(blob, currentFileBuffer);
+  }
+
+  return blob;
+}
+
+async function saveBlobWithPicker(blob, fileName, mimeType) {
+  try {
+    if (window.borderLabDesktop?.saveFile) {
+      const buffer = await blob.arrayBuffer();
+      const result = await window.borderLabDesktop.saveFile({
+        suggestedName: fileName,
+        mimeType,
+        buffer
+      });
+      return true;
+    }
+
+    if ("showSaveFilePicker" in window) {
+      const handle = await window.showSaveFilePicker({
+        id: "border-lab-export-image",
+        suggestedName: fileName,
+        types: [
+          {
+            description: mimeType === "image/png" ? "PNG Image" : "JPEG Image",
+            accept: {
+              [mimeType]: mimeType === "image/png" ? [".png"] : [".jpg", ".jpeg"],
+            },
+          },
+        ],
+      });
+      const writable = await handle.createWritable();
+      await writable.write(blob);
+      await writable.close();
+      return true;
+    }
+  } catch (error) {
+    if (error && error.name === "AbortError") {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+function downloadBlob(blob, fileName) {
+  const link = document.createElement("a");
+  link.download = fileName;
+  link.href = URL.createObjectURL(blob);
+  link.click();
+  URL.revokeObjectURL(link.href);
+}
+
+async function exportImage() {
+  if (!currentImage || !currentFile) {
+    return;
+  }
+
+  const shouldExportRounded = exportRounded.checked;
+  const fileName = exportFileNameFor(currentFile);
+  const finalBlob = await createExportBlob();
+  if (!finalBlob) {
+    return;
+  }
+
+  const saved = await saveBlobWithPicker(
+    finalBlob,
+    fileName,
+    shouldExportRounded ? "image/png" : "image/jpeg"
+  );
+  if (!saved) {
+    downloadBlob(finalBlob, fileName);
+  }
+}
+
+async function createExportRecord(item, usedNames) {
+  if (!applyAllPhotos.checked && item?.settings) {
+    applyDesignSettings(item.settings);
+  }
+  syncCurrentPhotoState(item);
+  const blob = await createExportBlob();
+  if (!blob) {
+    return null;
+  }
+
+  return {
+    name: exportFileNameFor(item.file, usedNames),
+    mimeType: exportRounded.checked ? "image/png" : "image/jpeg",
+    blob,
+  };
+}
+
+async function exportAllImages() {
+  if (!photoItems.length) {
+    return;
+  }
+
+  const originalId = currentPhotoId;
+  const originalSettings = currentDesignSettings();
+  const usedNames = new Set();
+  const records = [];
+
+  exportAllButton.disabled = true;
+  exportAllButton.textContent = "导出中...";
+
+  try {
+    for (const item of photoItems) {
+      const record = await createExportRecord(item, usedNames);
+      if (record) {
+        records.push(record);
+      }
+    }
+
+    if (window.borderLabDesktop?.saveFiles) {
+      const files = [];
+      for (const record of records) {
+        files.push({
+          name: record.name,
+          mimeType: record.mimeType,
+          buffer: await record.blob.arrayBuffer(),
+        });
+      }
+      const result = await window.borderLabDesktop.saveFiles({ files });
       return;
     }
 
-    let finalBlob = blob;
-    if (!shouldExportRounded && currentFile?.type === "image/jpeg" && currentFileBuffer) {
-      finalBlob = await mergeExifIntoJpegBlob(blob, currentFileBuffer);
-    }
-
-    try {
-      if (window.borderLabDesktop?.saveFile) {
-        const buffer = await finalBlob.arrayBuffer();
-        const result = await window.borderLabDesktop.saveFile({
-          suggestedName: fileName,
-          mimeType: shouldExportRounded ? "image/png" : "image/jpeg",
-          buffer
-        });
-        if (!result?.canceled) {
+    if ("showDirectoryPicker" in window) {
+      try {
+        const directory = await window.showDirectoryPicker({ id: "border-lab-export-batch" });
+        for (const record of records) {
+          const handle = await directory.getFileHandle(record.name, { create: true });
+          const writable = await handle.createWritable();
+          await writable.write(record.blob);
+          await writable.close();
+        }
+        return;
+      } catch (error) {
+        if (error && error.name === "AbortError") {
           return;
         }
       }
-
-      if ("showSaveFilePicker" in window) {
-        const handle = await window.showSaveFilePicker({
-          suggestedName: fileName,
-          types: [
-            {
-              description: shouldExportRounded ? "PNG Image" : "JPEG Image",
-              accept: {
-                [shouldExportRounded ? "image/png" : "image/jpeg"]: shouldExportRounded ? [".png"] : [".jpg", ".jpeg"],
-              },
-            },
-          ],
-        });
-        const writable = await handle.createWritable();
-        await writable.write(finalBlob);
-        await writable.close();
-        return;
-      }
-    } catch (error) {
-      if (error && error.name === "AbortError") {
-        return;
-      }
     }
 
-    const link = document.createElement("a");
-    link.download = fileName;
-    link.href = URL.createObjectURL(finalBlob);
-    link.click();
-    URL.revokeObjectURL(link.href);
-  }, shouldExportRounded ? "image/png" : "image/jpeg", shouldExportRounded ? undefined : quality);
+    records.forEach((record) => downloadBlob(record.blob, record.name));
+  } finally {
+    applyDesignSettings(originalSettings);
+    const originalItem = photoItems.find((item) => item.id === originalId);
+    currentPhotoId = originalId;
+    syncCurrentPhotoState(originalItem);
+    updatePhotoList();
+    updateImageMetaLabel();
+    resetPreviewViewport();
+    renderPreview();
+    exportAllButton.disabled = false;
+    refreshExportButtonText();
+  }
 }
 
 [
@@ -1165,27 +1787,31 @@ function exportImage() {
   cornerRadiusRange,
   useExifDate,
   useExifCamera,
+  applyAllPhotos,
 ].forEach((element) => {
   element.addEventListener("input", () => {
+    handleDesignSettingsChange();
     updateLabels();
     syncRangeFill(element);
-    renderPreview();
+    scheduleRenderPreview();
   });
   element.addEventListener("change", () => {
+    handleDesignSettingsChange();
     updateLabels();
     syncRangeFill(element);
-    renderPreview();
+    scheduleRenderPreview();
   });
 });
 
 imageInput.addEventListener("change", (event) => handleFiles(event.target.files));
+uploadButton.addEventListener("click", openPhotoPicker);
 emptyState.addEventListener("click", (event) => {
   event.stopPropagation();
-  imageInput.click();
+  openPhotoPicker();
 });
 canvasFrame.addEventListener("click", () => {
   if (!currentImage) {
-    imageInput.click();
+    openPhotoPicker();
   }
 });
 canvasFrame.addEventListener("wheel", (event) => {
@@ -1253,24 +1879,41 @@ exportRounded.addEventListener("change", () => {
   updatePreviewCornerRadius();
   updateExportQualityState();
 });
+applyAllPhotos.addEventListener("change", () => {
+  if (applyAllPhotos.checked) {
+    syncAllPhotoSettings();
+  } else {
+    saveCurrentPhotoSettings();
+  }
+  scheduleRenderPreview();
+});
 clearPhotoButton.addEventListener("click", clearPhoto);
 exportButton.addEventListener("click", exportImage);
+exportAllButton.addEventListener("click", exportAllImages);
+photoList.addEventListener("click", (event) => {
+  const button = event.target.closest(".photo-card");
+  if (!button) {
+    return;
+  }
+  setCurrentPhoto(Number(button.dataset.photoId));
+});
 templateList.addEventListener("click", (event) => {
   const button = event.target.closest(".template-card");
   if (!button) {
     return;
   }
   applyTemplate(button.dataset.template);
+  handleDesignSettingsChange();
   resetPreviewViewport();
   updateLabels();
   syncAllRangeFills();
-  renderPreview();
+  scheduleRenderPreview();
 });
 
 resetButton.addEventListener("click", () => {
   resetControls();
   resetPreviewViewport();
-  renderPreview();
+  scheduleRenderPreview();
 });
 
 ["dragenter", "dragover"].forEach((eventName) => {

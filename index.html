@@ -20,11 +20,11 @@
       </div>
 
       <section class="panel-section panel-span-2">
-        <label class="upload-card" for="imageInput">
+        <button id="uploadButton" class="upload-card" type="button">
           <span class="upload-title">导入照片</span>
           <span class="upload-hint">支持 JPG / JPEG / PNG / WebP，JPEG 可读取常见 EXIF</span>
-        </label>
-        <input id="imageInput" type="file" accept="image/jpeg,image/png,image/webp" hidden>
+        </button>
+        <input id="imageInput" type="file" accept="image/jpeg,image/png,image/webp" multiple hidden>
       </section>
 
       <section class="panel-section">
@@ -159,9 +159,13 @@
           <input id="useExifCamera" type="checkbox" checked>
           <span>副标题自动追加镜头信息</span>
         </label>
-        <label class="toggle-row panel-span-2">
+        <label class="toggle-row">
           <input id="exportRounded" type="checkbox">
           <span>导出圆角版本（PNG）</span>
+        </label>
+        <label class="toggle-row">
+          <input id="applyAllPhotos" type="checkbox" checked>
+          <span>当前修改用于全部照片</span>
         </label>
       </section>
 
@@ -175,6 +179,7 @@
 
         <section class="panel-section action-row panel-span-2">
           <button id="exportButton" class="action-button primary" type="button">导出 JPG</button>
+          <button id="exportAllButton" class="action-button secondary" type="button">导出全部</button>
           <button id="resetButton" class="action-button secondary" type="button">恢复默认</button>
         </section>
       </div>
@@ -207,14 +212,23 @@
             <span id="imageMetaLabel" class="preview-meta-label">未载入照片</span>
           </div>
         </div>
-        <div id="canvasStage" class="canvas-stage">
-          <div id="canvasFrame" class="canvas-frame">
-            <canvas id="previewCanvas" width="1200" height="900"></canvas>
-            <button id="emptyState" class="empty-state" type="button">
-              <span>拖入照片或点击左侧导入</span>
-              <small>支持格式：JPG / JPEG / PNG / WebP</small>
-            </button>
+        <div class="preview-workspace">
+          <div id="canvasStage" class="canvas-stage">
+            <div id="canvasFrame" class="canvas-frame">
+              <canvas id="previewCanvas" width="1200" height="900"></canvas>
+              <button id="emptyState" class="empty-state" type="button">
+                <span>拖入照片或点击左侧导入</span>
+                <small>支持格式：JPG / JPEG / PNG / WebP</small>
+              </button>
+            </div>
           </div>
+          <aside class="photo-strip" aria-label="已导入照片">
+            <div class="photo-strip-header">
+              <span>照片</span>
+              <strong id="photoCountLabel">0</strong>
+            </div>
+            <div id="photoList" class="photo-list"></div>
+          </aside>
         </div>
 
         <section class="template-selector">
