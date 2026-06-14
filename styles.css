@@ -3,6 +3,10 @@
   --bg-2: #f8f2dd;
   --panel: rgba(255, 255, 255, 0.58);
   --panel-border: rgba(255, 255, 255, 0.74);
+
+.hidden {
+  display: none !important;
+}
   --text: #111111;
   --muted: #6f6554;
   --accent: #ffd43b;
