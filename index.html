@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
@@ -47,7 +47,7 @@
           <label for="borderRange">四周留白</label>
           <span id="borderValue">30%</span>
         </div>
-        <input id="borderRange" type="range" min="0" max="100" value="30" step="0.1">
+        <input id="borderRange" type="range" min="0" max="100" value="30" step="1">
       </section>
 
       <section class="panel-section">
@@ -55,7 +55,7 @@
           <label for="bottomRange">底部说明区</label>
           <span id="bottomValue">30%</span>
         </div>
-        <input id="bottomRange" type="range" min="0" max="100" value="30" step="0.1">
+        <input id="bottomRange" type="range" min="0" max="100" value="30" step="1">
       </section>
 
       <section class="panel-section">
@@ -178,10 +178,16 @@
           <input id="exportRounded" type="checkbox">
           <span>导出圆角版本（PNG）</span>
         </label>
-        <label class="toggle-row">
-          <input id="applyAllPhotos" type="checkbox" checked>
-          <span>当前修改用于全部照片</span>
+        <label id="photoStrokeRow" class="toggle-row">
+          <input id="photoStroke" type="checkbox">
+          <span>照片描边</span>
         </label>
+        <div id="watermarkSelectRow" class="toggle-row watermark-select-row hidden">
+          <button id="selectWatermarkButton" class="watermark-select-button" type="button">
+            <span class="watermark-icon" aria-hidden="true"></span>
+            <span id="watermarkFileName">选择水印</span>
+          </button>
+        </div>
       </section>
 
       <section class="panel-section panel-span-2">
@@ -190,6 +196,51 @@
           <span id="cornerRadiusValue">50%</span>
         </div>
         <input id="cornerRadiusRange" type="range" min="0" max="100" value="50" step="1">
+      </section>
+
+      <section id="watermarkControls" class="panel-section panel-span-2 watermark-controls hidden">
+        <div class="panel-section">
+          <div class="field-label-row">
+            <label for="watermarkXRange">水印水平位置</label>
+            <span id="watermarkXValue">80%</span>
+          </div>
+          <input id="watermarkXRange" type="range" min="0" max="100" value="80">
+        </div>
+        <div class="panel-section">
+          <div class="field-label-row">
+            <label for="watermarkYRange">水印垂直位置</label>
+            <span id="watermarkYValue">80%</span>
+          </div>
+          <input id="watermarkYRange" type="range" min="0" max="100" value="80">
+        </div>
+        <div class="panel-section">
+          <div class="field-label-row">
+            <label for="watermarkSizeRange">水印大小</label>
+            <span id="watermarkSizeValue">30%</span>
+          </div>
+          <input id="watermarkSizeRange" type="range" min="5" max="300" value="97">
+        </div>
+        <div id="brandLogoSizeRow" class="panel-section hidden">
+          <div class="field-label-row">
+            <label for="brandLogoSizeRange">右侧标识大小</label>
+            <span id="brandLogoSizeValue">100%</span>
+          </div>
+          <input id="brandLogoSizeRange" type="range" min="5" max="140" value="100">
+        </div>
+        <div id="brandTextWeightRow" class="panel-section hidden">
+          <div class="field-label-row">
+            <label for="brandTextWeightRange">左侧文字粗细</label>
+            <span id="brandTextWeightValue">600</span>
+          </div>
+          <input id="brandTextWeightRange" type="range" min="300" max="1000" value="600" step="1">
+        </div>
+        <div class="panel-section">
+          <div class="field-label-row">
+            <label for="watermarkOpacityRange">水印透明度</label>
+            <span id="watermarkOpacityValue">40%</span>
+          </div>
+          <input id="watermarkOpacityRange" type="range" min="5" max="100" value="40">
+        </div>
       </section>
 
         <section class="panel-section action-row panel-span-2">
@@ -202,9 +253,16 @@
 
     <main class="stage-panel">
       <section id="dropZone" class="preview-shell">
+        <input id="applyAllPhotos" type="checkbox" checked hidden>
         <div class="panel-header">
           <span class="preview-heading">实时预览</span>
           <div class="preview-toolbar">
+            <button id="applyAllButton" class="preview-tool-button preview-icon-button" type="button" aria-label="当前修改用于全部照片" title="当前修改用于全部照片">
+              <span class="sync-icon" aria-hidden="true"></span>
+            </button>
+            <button id="rotateButton" class="preview-tool-button preview-icon-button" type="button" aria-label="旋转照片" title="旋转照片 90°">
+              <span class="rotate-icon" aria-hidden="true"></span>
+            </button>
             <button id="clearAllPhotosButton" class="preview-tool-button preview-icon-button clear-all-button" type="button" aria-label="删除全部照片" title="删除全部照片">
               <span class="clear-all-icon" aria-hidden="true"></span>
             </button>
@@ -259,16 +317,7 @@
                 <span class="template-classic-subtitle"></span>
                 <span class="template-classic-meta"></span>
               </span>
-              <strong>横屏白框</strong>
-            </button>
-            <button class="template-card" data-template="classicAlt" type="button">
-              <span class="template-thumb template-classic template-classic-alt">
-                <span class="template-classic-photo"></span>
-                <span class="template-classic-title"></span>
-                <span class="template-classic-subtitle"></span>
-                <span class="template-classic-meta"></span>
-              </span>
-              <strong>竖屏白框</strong>
+              <strong>白框</strong>
             </button>
             <button class="template-card" data-template="galleryDark" type="button">
               <span class="template-thumb template-dark">
@@ -277,16 +326,36 @@
                 <span class="template-dark-title"></span>
                 <span class="template-dark-meta"></span>
               </span>
-              <strong>横屏壹印</strong>
+              <strong>壹印</strong>
             </button>
-            <button class="template-card" data-template="galleryDarkPortrait" type="button">
-              <span class="template-thumb template-dark template-dark-portrait">
-                <span class="template-dark-stage"></span>
-                <span class="template-dark-photo"></span>
-                <span class="template-dark-title"></span>
-                <span class="template-dark-meta"></span>
+            <button class="template-card" data-template="watermark" type="button">
+              <span class="template-thumb template-watermark">
+                <span class="template-watermark-photo"></span>
+                <span class="template-watermark-sign"></span>
               </span>
-              <strong>竖屏壹印</strong>
+              <strong>签名水印</strong>
+            </button>
+            <button class="template-card" data-template="hasselblad" type="button">
+              <span class="template-thumb template-hasselblad">
+                <span class="template-hasselblad-photo"></span>
+                <span class="template-hasselblad-text">
+                  <span class="template-hasselblad-model">f/1.8  1/250s</span>
+                  <span class="template-hasselblad-divider"></span>
+                  <span class="template-hasselblad-logo"></span>
+                </span>
+              </span>
+              <strong>哈苏水印</strong>
+            </button>
+            <button class="template-card" data-template="nikon" type="button">
+              <span class="template-thumb template-hasselblad template-nikon">
+                <span class="template-hasselblad-photo"></span>
+                <span class="template-hasselblad-text">
+                  <span class="template-hasselblad-model">f/2.8  1/500s</span>
+                  <span class="template-hasselblad-divider"></span>
+                  <span class="template-nikon-logo"></span>
+                </span>
+              </span>
+              <strong>尼康水印</strong>
             </button>
           </div>
         </section>

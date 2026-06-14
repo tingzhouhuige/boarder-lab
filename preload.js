@@ -29,5 +29,11 @@ contextBridge.exposeInMainWorld("borderLabDesktop", {
         data: new Uint8Array(file.buffer)
       }))
     });
+  },
+  saveWatermark: async (data, fileName) => {
+    return ipcRenderer.invoke("border-lab:save-watermark", data, fileName);
+  },
+  loadWatermark: async () => {
+    return ipcRenderer.invoke("border-lab:load-watermark");
   }
 });

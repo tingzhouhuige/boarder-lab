@@ -1,4 +1,4 @@
-﻿# 边框实验室
+# 边框实验室
 
 边框实验室是一个可直接在浏览器打开的静态网页工具，用于给照片添加边框、读取常见 EXIF 信息，并导出带标注的成片。
 
@@ -7,7 +7,7 @@
 ## 功能亮点
 
 - 导入 `JPG / JPEG / PNG / WebP`
-- 读取常见 JPEG EXIF 信息
+- 读取常见 JPEG EXIF 信息（支持等效焦段）
 - 自动追加拍摄日期、镜头信息、焦段
 - 实时预览，支持滚轮缩放和拖拽查看
 - 调整边框、底部说明区、字体、字号、位置、颜色
@@ -15,13 +15,17 @@
 - 导出 `JPG`
 - 导出圆角 `PNG`
 - 导出时可限制最长边
+- 滑块双击恢复当前模板默认值
+- 滑块点击后方向键微调（步长 1）
+- 自定义水印图片（签名水印模板，设置持久化）
 
 ## 当前模板
 
-- 模板 1：横屏白框
-- 模板 2：竖屏白框
-- 模板 3：横屏壹印
-- 模板 4：竖屏壹印
+- 模板 1：白框（经典横屏 / 竖屏）
+- 模板 2：壹印（模糊背景横屏 / 竖屏）
+- 模板 3：签名水印（自定义水印图片）
+- 模板 4：哈苏水印（品牌风格）
+- 模板 5：尼康水印（品牌风格）
 
 ## 适合的使用场景
 
@@ -29,6 +33,7 @@
 - 快速生成社交平台分享图
 - 做横屏、竖屏两套成片排版
 - 制作带日期、镜头、焦段信息的展示图
+- 添加个人版权水印
 
 ## 本地使用
 
@@ -73,6 +78,10 @@ npm run dist:installer
 ```text
 .
 ├─ assets/
+│  ├─ app-icon.ico
+│  ├─ app-icon.png
+│  ├─ hasselblad-logo.svg
+│  ├─ nikon-logo.svg
 │  ├─ template-classic.jpg
 │  ├─ template-classic-alt.jpg
 │  └─ template-dark.jpg
@@ -82,21 +91,22 @@ npm run dist:installer
 ├─ index.html
 ├─ package.json
 ├─ styles.css
-├─ README.md
-├─ RELEASE_NOTES_v1.0.1.md
-└─ GITHUB_RELEASE_GUIDE.md
+├─ start.bat
+└─ README.md
 ```
 
 ## 发布到 GitHub
 
 ### 上传仓库
 
-
 - `index.html`
 - `styles.css`
 - `app.js`
+- `main.js`
+- `preload.js`
 - `assets/`
 - `README.md`
+- `start.bat`
 
 ### 创建 Release
 
@@ -113,7 +123,6 @@ npm run dist:installer
 
 ### 启用 GitHub Pages
 
-
 1. 打开仓库的 `Settings`
 2. 进入 `Pages`
 3. 在 `Build and deployment` 中选择 `Deploy from a branch`
@@ -126,3 +135,4 @@ npm run dist:installer
 - PNG / WebP 通常不含标准 EXIF，能导入但不一定能读取拍摄信息
 - 壹印模板使用模糊底板样式，边框颜色控件默认不参与显示
 - 当前导入链路仍以浏览器原生图片解码为主，`DNG` 暂未直接支持
+- 签名水印模板的水印图片需要用户自行选择，设置会自动保存

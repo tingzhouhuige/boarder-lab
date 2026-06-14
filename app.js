@@ -28,6 +28,7 @@ const useExifDate = document.getElementById("useExifDate");
 const useExifCamera = document.getElementById("useExifCamera");
 const exportRounded = document.getElementById("exportRounded");
 const applyAllPhotos = document.getElementById("applyAllPhotos");
+const applyAllButton = document.getElementById("applyAllButton");
 const exportButton = document.getElementById("exportButton");
 const exportAllButton = document.getElementById("exportAllButton");
 const resetButton = document.getElementById("resetButton");
@@ -48,6 +49,29 @@ const infoControlsRow = document.getElementById("infoControlsRow");
 const uploadButton = document.getElementById("uploadButton");
 const photoList = document.getElementById("photoList");
 const photoCountLabel = document.getElementById("photoCountLabel");
+const photoStroke = document.getElementById("photoStroke");
+const photoStrokeRow = document.getElementById("photoStrokeRow");
+const watermarkControls = document.getElementById("watermarkControls");
+const watermarkXRange = document.getElementById("watermarkXRange");
+const watermarkYRange = document.getElementById("watermarkYRange");
+const watermarkSizeRange = document.getElementById("watermarkSizeRange");
+const brandLogoSizeRange = document.getElementById("brandLogoSizeRange");
+const brandTextWeightRange = document.getElementById("brandTextWeightRange");
+const watermarkOpacityRange = document.getElementById("watermarkOpacityRange");
+const watermarkXValue = document.getElementById("watermarkXValue");
+const watermarkYValue = document.getElementById("watermarkYValue");
+const watermarkSizeValue = document.getElementById("watermarkSizeValue");
+const brandLogoSizeValue = document.getElementById("brandLogoSizeValue");
+const brandTextWeightValue = document.getElementById("brandTextWeightValue");
+const watermarkOpacityValue = document.getElementById("watermarkOpacityValue");
+const watermarkXLabel = document.querySelector("label[for='watermarkXRange']");
+const watermarkYLabel = document.querySelector("label[for='watermarkYRange']");
+const watermarkSizeLabel = document.querySelector("label[for='watermarkSizeRange']");
+const watermarkOpacityLabel = document.querySelector("label[for='watermarkOpacityRange']");
+const brandLogoSizeRow = document.getElementById("brandLogoSizeRow");
+const brandTextWeightRow = document.getElementById("brandTextWeightRow");
+const watermarkSelectRow = document.getElementById("watermarkSelectRow");
+const rotateButton = document.getElementById("rotateButton");
 const desktopTitlebar = document.querySelector(".desktop-titlebar");
 const confirmDialog = document.getElementById("confirmDialog");
 const confirmDialogMessage = document.getElementById("confirmDialogMessage");
@@ -90,79 +114,199 @@ const fontMap = {
   system: 'system-ui, -apple-system, "Segoe UI", sans-serif',
 };
 
+const watermarkImage = new Image();
+const watermarkFileInput = document.createElement("input");
+watermarkFileInput.type = "file";
+watermarkFileInput.accept = "image/*";
+watermarkFileInput.id = "watermarkFileInput";
+watermarkFileInput.style.display = "none";
+document.body.appendChild(watermarkFileInput);
+const hasselbladLogoImage = new Image();
+hasselbladLogoImage.src = "assets/hasselblad-logo.svg";
+const HASSELBLAD_LOGO_RATIO = 201 / 19;
+const nikonLogoImage = new Image();
+nikonLogoImage.src = "assets/nikon-logo.svg";
+const NIKON_LOGO_RATIO = 400 / 130;
+
 const templates = {
   classic: {
-    border: 30,
-    bottom: 30,
-    headlineFont: "yahei",
-    sublineFont: "times",
-    infoFont: "times",
-    headlineSize: 55,
-    sublineSize: 55,
-    infoSize: 48,
-    headlineOffset: 20,
-    sublineOffset: 37,
-    infoOffset: 53,
-    cornerRadius: 50,
-    subline: "NIKON Zfc",
-    paperColor: "#ffffff",
-    textColor: "#4b433d",
-  },
-  classicAlt: {
-    border: 41.5,
-    bottom: 13.3,
-    headlineFont: "yahei",
-    sublineFont: "times",
-    infoFont: "times",
-    headlineSize: 72,
-    sublineSize: 62,
-    infoSize: 56,
-    headlineOffset: 14,
-    sublineOffset: 23,
-    infoOffset: 32,
-    cornerRadius: 50,
-    subline: "NIKON Zfc",
-    paperColor: "#ffffff",
-    textColor: "#4b433d",
+    landscape: {
+      border: 30,
+      bottom: 30,
+      headlineFont: "yahei",
+      sublineFont: "times",
+      infoFont: "times",
+      headlineSize: 55,
+      sublineSize: 55,
+      infoSize: 48,
+      headlineOffset: 20,
+      sublineOffset: 37,
+      infoOffset: 53,
+      cornerRadius: 50,
+      subline: "NIKON Zfc",
+      paperColor: "#ffffff",
+      textColor: "#4b433d",
+    },
+    portrait: {
+      border: 41.5,
+      bottom: 13.3,
+      headlineFont: "yahei",
+      sublineFont: "times",
+      infoFont: "times",
+      headlineSize: 72,
+      sublineSize: 62,
+      infoSize: 56,
+      headlineOffset: 14,
+      sublineOffset: 23,
+      infoOffset: 32,
+      cornerRadius: 50,
+      subline: "NIKON Zfc",
+      paperColor: "#ffffff",
+      textColor: "#4b433d",
+    },
   },
   galleryDark: {
-    border: 37,
-    bottom: 35,
-    headlineFont: "yahei",
-    sublineFont: "times",
-    infoFont: "times",
-    headlineSize: 56,
-    sublineSize: 55,
-    infoSize: 48,
-    headlineOffset: 5,
-    sublineOffset: 30,
-    infoOffset: 53,
-    cornerRadius: 50,
-    subline: "NIKON Zfc",
-    paperColor: "#34362f",
-    textColor: "#f2ead8",
+    landscape: {
+      border: 37,
+      bottom: 35,
+      headlineFont: "yahei",
+      sublineFont: "times",
+      infoFont: "times",
+      headlineSize: 56,
+      sublineSize: 55,
+      infoSize: 48,
+      headlineOffset: 5,
+      sublineOffset: 30,
+      infoOffset: 53,
+      cornerRadius: 50,
+      subline: "NIKON Zfc",
+      paperColor: "#34362f",
+      textColor: "#f2ead8",
+    },
+    portrait: {
+      border: 48.4,
+      bottom: 22.3,
+      headlineFont: "yahei",
+      sublineFont: "times",
+      infoFont: "times",
+      headlineSize: 68,
+      sublineSize: 76,
+      infoSize: 48,
+      headlineOffset: 6,
+      sublineOffset: 19,
+      infoOffset: 53,
+      cornerRadius: 50,
+      subline: "NIKON Zfc",
+      paperColor: "#34362f",
+      textColor: "#f2ead8",
+    },
   },
-  galleryDarkPortrait: {
-    border: 48.4,
-    bottom: 22.3,
-    headlineFont: "yahei",
-    sublineFont: "times",
-    infoFont: "times",
-    headlineSize: 68,
-    sublineSize: 76,
-    infoSize: 48,
-    headlineOffset: 6,
-    sublineOffset: 19,
-    infoOffset: 53,
-    cornerRadius: 50,
-    subline: "NIKON Zfc",
-    paperColor: "#34362f",
-    textColor: "#f2ead8",
+  watermark: {
+    landscape: {
+      border: 0,
+      bottom: 0,
+      cornerRadius: 50,
+      watermarkX: 50,
+      watermarkY: 97,
+      watermarkSize: 15,
+      watermarkOpacity: 70,
+    },
+    portrait: {
+      border: 0,
+      bottom: 0,
+      cornerRadius: 50,
+      watermarkX: 50,
+      watermarkY: 98,
+      watermarkSize: 26,
+      watermarkOpacity: 70,
+    },
+  },
+  hasselblad: {
+    landscape: {
+      border: 0,
+      bottom: 0,
+      cornerRadius: 50,
+      subline: "OPPO Find N5",
+      watermarkX: 50,
+      watermarkY: 91,
+      watermarkSize: 75,
+      brandLogoSize: 60,
+      brandTextWeight: 600,
+      watermarkOpacity: 100,
+    },
+    portrait: {
+      border: 0,
+      bottom: 0,
+      cornerRadius: 50,
+      subline: "OPPO Find N5",
+      watermarkX: 50,
+      watermarkY: 93,
+      watermarkSize: 100,
+      brandLogoSize: 88,
+      brandTextWeight: 600,
+      watermarkOpacity: 100,
+    },
+  },
+  nikon: {
+    landscape: {
+      border: 0,
+      bottom: 0,
+      cornerRadius: 50,
+      subline: "NIKON Zfc",
+      watermarkX: 50,
+      watermarkY: 91,
+      watermarkSize: 75,
+      brandLogoSize: 73,
+      brandTextWeight: 600,
+      watermarkOpacity: 100,
+    },
+    portrait: {
+      border: 0,
+      bottom: 0,
+      cornerRadius: 50,
+      subline: "NIKON Zfc",
+      watermarkX: 50,
+      watermarkY: 93,
+      watermarkSize: 115,
+      brandLogoSize: 110,
+      brandTextWeight: 600,
+      watermarkOpacity: 100,
+    },
   },
 };
 
+let photoOrientation = "landscape";
+let photoRotation = 0;
+
+function getTemplateParams(templateName) {
+  const template = templates[templateName];
+  if (!template) return null;
+  return template[photoOrientation] || template.landscape;
+}
+
+function detectOrientation(image) {
+  if (!image) return "landscape";
+  const w = photoRotation % 180 === 0 ? image.naturalWidth : image.naturalHeight;
+  const h = photoRotation % 180 === 0 ? image.naturalHeight : image.naturalWidth;
+  return w >= h ? "landscape" : "portrait";
+}
+
 function getFontFamily(key) {
   return fontMap[key] || fontMap.yahei;
+}
+
+function isOverlayTemplate(name) {
+  return name === "watermark" || name === "hasselblad" || name === "nikon";
+}
+
+function updateWatermarkControlLabels(name) {
+  const isBrandWatermarkTemplate = name === "hasselblad" || name === "nikon";
+  watermarkXLabel.textContent = isBrandWatermarkTemplate ? "信息水平位置" : "水印水平位置";
+  watermarkYLabel.textContent = isBrandWatermarkTemplate ? "信息垂直位置" : "水印垂直位置";
+  watermarkSizeLabel.textContent = isBrandWatermarkTemplate ? "左侧文字大小" : "水印大小";
+  watermarkOpacityLabel.textContent = isBrandWatermarkTemplate ? "信息透明度" : "水印透明度";
+  brandLogoSizeRow.classList.toggle("hidden", !isBrandWatermarkTemplate);
+  brandTextWeightRow.classList.toggle("hidden", !isBrandWatermarkTemplate);
 }
 
 function enhanceSelect(select) {
@@ -258,28 +402,68 @@ function applyTemplate(name) {
     return;
   }
   currentTemplate = name;
-  const isYiyinTemplate = name === "galleryDark" || name === "galleryDarkPortrait";
-  infoControlsRow.classList.toggle("template-hidden", isYiyinTemplate);
-  paperColorSection.classList.toggle("template-hidden", isYiyinTemplate);
+  const isYiyinTemplate = name === "galleryDark";
+  const isClassicTemplate = name === "classic";
+  const isWatermarkTemplate = name === "watermark";
+  const isBrandWatermarkTemplate = name === "hasselblad" || name === "nikon";
+  const isOverlayWatermarkTemplate = isOverlayTemplate(name);
+  const params = getTemplateParams(name);
+  infoControlsRow.classList.toggle("template-hidden", isYiyinTemplate || isOverlayWatermarkTemplate);
+  paperColorSection.classList.toggle("template-hidden", isYiyinTemplate || isOverlayWatermarkTemplate);
+  photoStrokeRow.classList.toggle("template-hidden", !isClassicTemplate);
+  watermarkControls.classList.toggle("hidden", !isOverlayWatermarkTemplate);
+  watermarkSelectRow.classList.toggle("hidden", !isWatermarkTemplate);
+  updateWatermarkControlLabels(name);
 
-  borderRange.value = String(template.border);
-  bottomRange.value = String(template.bottom);
-  headlineFontSelect.value = template.headlineFont;
-  sublineFontSelect.value = template.sublineFont;
-  infoFontSelect.value = template.infoFont;
-  headlineSizeRange.value = String(template.headlineSize);
-  sublineSizeRange.value = String(template.sublineSize);
-  infoSizeRange.value = String(template.infoSize);
-  headlineOffsetRange.value = String(template.headlineOffset);
-  sublineOffsetRange.value = String(template.sublineOffset);
-  infoOffsetRange.value = String(template.infoOffset);
-  cornerRadiusRange.value = String(template.cornerRadius);
-  sublineInput.value = template.subline;
-  if (template.paperColor) {
-    paperColor.value = template.paperColor;
+  if (isOverlayWatermarkTemplate) {
+    document.querySelectorAll(".control-panel .panel-section:not(.action-row):not(.panel-span-2)").forEach(el => {
+      if (!el.closest("#watermarkControls") && !el.closest(".brand-block")) {
+        el.classList.add("template-hidden");
+      }
+    });
+  } else {
+    document.querySelectorAll(".control-panel .panel-section.template-hidden").forEach(el => {
+      el.classList.remove("template-hidden");
+    });
   }
-  if (template.textColor) {
-    textColor.value = template.textColor;
+
+  if (isOverlayWatermarkTemplate) {
+    watermarkXRange.value = String(params.watermarkX);
+    watermarkYRange.value = String(params.watermarkY);
+    watermarkSizeRange.value = String(params.watermarkSize);
+    brandLogoSizeRange.value = String(params.brandLogoSize ?? 100);
+    brandTextWeightRange.value = String(params.brandTextWeight ?? 600);
+    watermarkOpacityRange.value = String(params.watermarkOpacity);
+    cornerRadiusRange.value = String(params.cornerRadius);
+    if (isBrandWatermarkTemplate && params.subline) {
+      sublineInput.value = params.subline;
+    }
+    updateLabels();
+    syncAllRangeFills();
+    templateList.querySelectorAll(".template-card").forEach((button) => {
+      button.classList.toggle("active", button.dataset.template === name);
+    });
+    return;
+  }
+
+  borderRange.value = String(params.border);
+  bottomRange.value = String(params.bottom);
+  headlineFontSelect.value = params.headlineFont;
+  sublineFontSelect.value = params.sublineFont;
+  infoFontSelect.value = params.infoFont;
+  headlineSizeRange.value = String(params.headlineSize);
+  sublineSizeRange.value = String(params.sublineSize);
+  infoSizeRange.value = String(params.infoSize);
+  headlineOffsetRange.value = String(params.headlineOffset);
+  sublineOffsetRange.value = String(params.sublineOffset);
+  infoOffsetRange.value = String(params.infoOffset);
+  cornerRadiusRange.value = String(params.cornerRadius);
+  sublineInput.value = params.subline;
+  if (params.paperColor) {
+    paperColor.value = params.paperColor;
+  }
+  if (params.textColor) {
+    textColor.value = params.textColor;
   }
 
   templateList.querySelectorAll(".template-card").forEach((button) => {
@@ -298,6 +482,12 @@ function updateLabels() {
   infoOffsetValue.textContent = `${infoOffsetRange.value}%`;
   cornerRadiusValue.textContent = `${cornerRadiusRange.value}%`;
   exportQualityValue.textContent = `${exportQualityRange.value}%`;
+  watermarkXValue.textContent = `${watermarkXRange.value}%`;
+  watermarkYValue.textContent = `${watermarkYRange.value}%`;
+  watermarkSizeValue.textContent = `${watermarkSizeRange.value}%`;
+  brandLogoSizeValue.textContent = `${brandLogoSizeRange.value}%`;
+  brandTextWeightValue.textContent = brandTextWeightRange.value;
+  watermarkOpacityValue.textContent = `${watermarkOpacityRange.value}%`;
 }
 
 function updateExportQualityState() {
@@ -335,6 +525,12 @@ function syncAllRangeFills() {
     sublineOffsetRange,
     infoOffsetRange,
     cornerRadiusRange,
+    watermarkXRange,
+    watermarkYRange,
+    watermarkSizeRange,
+    brandLogoSizeRange,
+    brandTextWeightRange,
+    watermarkOpacityRange,
   ].forEach(syncRangeFill);
 }
 
@@ -347,8 +543,15 @@ function resetControls() {
   useExifDate.checked = true;
   useExifCamera.checked = true;
   exportRounded.checked = false;
+  photoStroke.checked = false;
   applyAllPhotos.checked = true;
-  applyTemplate("classic");
+  watermarkXRange.value = "50";
+  watermarkYRange.value = "97";
+  watermarkSizeRange.value = "15";
+  brandLogoSizeRange.value = "100";
+  brandTextWeightRange.value = "600";
+  watermarkOpacityRange.value = "70";
+  applyTemplate(currentTemplate);
   updateExportButtonLabel();
   updateExportButtonText();
   refreshExportButtonText();
@@ -575,6 +778,7 @@ function parseExif(buffer) {
       fNumber: exifIfd[0x829d] || 0,
       iso: exifIfd[0x8827] || 0,
       focalLength: exifIfd[0x920a] || 0,
+      focalLengthIn35mm: exifIfd[0xa405] || 0,
       pixelXDimension: exifIfd[0xa002] || 0,
       pixelYDimension: exifIfd[0xa003] || 0,
     };
@@ -648,6 +852,24 @@ function cameraText() {
     .join(" ");
 }
 
+function brandCameraModelText(fallbackText = "OPPO Find N5") {
+  const make = String(currentExif.make || "").trim();
+  const model = String(currentExif.model || "").trim();
+  if (model) {
+    if (make && !model.toLowerCase().includes(make.toLowerCase())) {
+      return `${make} ${model}`;
+    }
+    return model;
+  }
+
+  const camera = cameraText().trim();
+  if (camera) {
+    return camera;
+  }
+
+  return (sublineInput.value || fallbackText).trim();
+}
+
 function headlineText() {
   const manual = headlineInput.value.trim();
   const dateText = useExifDate.checked
@@ -680,7 +902,7 @@ function exifLineText() {
   const aperture = formatAperture(Number(currentExif.fNumber));
   const exposure = formatExposure(Number(currentExif.exposureTime));
   const iso = currentExif.iso ? `ISO ${currentExif.iso}` : "";
-  const focal = formatFocal(Number(currentExif.focalLength));
+  const focal = formatFocal(Number(currentExif.focalLengthIn35mm || currentExif.focalLength));
 
   if (aperture) {
     parts.push(aperture);
@@ -710,7 +932,19 @@ function drawImageWithOrientation(targetCtx, image, box, orientation) {
 
   targetCtx.save();
 
-  if (orientation === 6) {
+  if (photoRotation === 90) {
+    targetCtx.translate(box.x + box.width / 2, box.y + box.height / 2);
+    targetCtx.rotate(Math.PI / 2);
+    targetCtx.drawImage(image, -drawHeight / 2, -drawWidth / 2, drawHeight, drawWidth);
+  } else if (photoRotation === 180) {
+    targetCtx.translate(box.x + box.width / 2, box.y + box.height / 2);
+    targetCtx.rotate(Math.PI);
+    targetCtx.drawImage(image, -drawWidth / 2, -drawHeight / 2, drawWidth, drawHeight);
+  } else if (photoRotation === 270) {
+    targetCtx.translate(box.x + box.width / 2, box.y + box.height / 2);
+    targetCtx.rotate(-Math.PI / 2);
+    targetCtx.drawImage(image, -drawHeight / 2, -drawWidth / 2, drawHeight, drawWidth);
+  } else if (orientation === 6) {
     targetCtx.translate(x + drawWidth, y);
     targetCtx.rotate(Math.PI / 2);
     targetCtx.drawImage(image, 0, -drawWidth, drawHeight, drawWidth);
@@ -984,6 +1218,224 @@ function renderGalleryDarkFrame(targetCanvas, maxLongSide, roundedCorners) {
   }
 }
 
+function renderWatermarkFrame(targetCanvas, maxLongSide, roundedCorners) {
+  const targetCtx = targetCanvas.getContext("2d");
+  const size = scaledImageSizeForMaxLongSide(maxLongSide);
+  const outputWidth = size.width;
+  const outputHeight = size.height;
+
+  targetCanvas.width = outputWidth;
+  targetCanvas.height = outputHeight;
+
+  if (roundedCorners) {
+    targetCtx.save();
+    roundedRectPath(targetCtx, 0, 0, outputWidth, outputHeight, getCornerRadiusPx(outputWidth, outputHeight));
+    targetCtx.clip();
+  }
+
+  drawImageWithOrientation(targetCtx, currentImage, { x: 0, y: 0, width: outputWidth, height: outputHeight }, currentOrientation);
+
+  if (watermarkImage.complete && watermarkImage.naturalWidth > 0) {
+    const wmSizePercent = Number(watermarkSizeRange.value) / 100;
+    const wmOpacity = Number(watermarkOpacityRange.value) / 100;
+    const wmXPercent = Number(watermarkXRange.value) / 100;
+    const wmYPercent = Number(watermarkYRange.value) / 100;
+
+    const wmWidth = Math.round(outputWidth * wmSizePercent);
+    const wmHeight = Math.round(wmWidth * (watermarkImage.naturalHeight / watermarkImage.naturalWidth));
+    const wmX = Math.round((outputWidth - wmWidth) * wmXPercent);
+    const wmY = Math.round((outputHeight - wmHeight) * wmYPercent);
+
+    targetCtx.save();
+    targetCtx.globalAlpha = wmOpacity;
+    targetCtx.drawImage(watermarkImage, wmX, wmY, wmWidth, wmHeight);
+    targetCtx.restore();
+  }
+
+  if (roundedCorners) {
+    targetCtx.restore();
+  }
+}
+
+function visualCenterBaseline(targetCtx, text, centerY) {
+  const metrics = targetCtx.measureText(text || "H");
+  const ascent = metrics.actualBoundingBoxAscent || 0;
+  const descent = metrics.actualBoundingBoxDescent || 0;
+  if (!ascent && !descent) {
+    return centerY;
+  }
+  return centerY + (ascent - descent) / 2;
+}
+
+function drawTrackedText(targetCtx, text, x, y, tracking, options = {}) {
+  const chars = Array.from(text);
+  const widths = chars.map((char) => targetCtx.measureText(char).width);
+  const totalWidth = trackedTextWidth(targetCtx, text, tracking);
+  let cursor = x - totalWidth / 2;
+  const strokeWidth = Number(options.strokeWidth || 0);
+
+  chars.forEach((char, index) => {
+    const charX = cursor + widths[index] / 2;
+    if (strokeWidth > 0) {
+      targetCtx.lineJoin = "round";
+      targetCtx.miterLimit = 2;
+      targetCtx.lineWidth = strokeWidth;
+      targetCtx.strokeStyle = targetCtx.fillStyle;
+      targetCtx.strokeText(char, charX, y);
+    }
+    targetCtx.fillText(char, charX, y);
+    cursor += widths[index] + tracking;
+  });
+}
+
+function trackedTextWidth(targetCtx, text, tracking) {
+  const chars = Array.from(text);
+  return chars.reduce((sum, char) => sum + targetCtx.measureText(char).width, 0)
+    + tracking * Math.max(0, chars.length - 1);
+}
+
+function renderBrandWatermarkFrame(targetCanvas, maxLongSide, roundedCorners, options) {
+  const targetCtx = targetCanvas.getContext("2d");
+  const size = scaledImageSizeForMaxLongSide(maxLongSide);
+  const outputWidth = size.width;
+  const outputHeight = size.height;
+  const brandImage = options.logoImage;
+  const brandRatio = options.logoRatio;
+  const defaultModelText = options.defaultModelText;
+  const fallbackBrandText = options.fallbackBrandText;
+
+  targetCanvas.width = outputWidth;
+  targetCanvas.height = outputHeight;
+
+  if (roundedCorners) {
+    targetCtx.save();
+    roundedRectPath(targetCtx, 0, 0, outputWidth, outputHeight, getCornerRadiusPx(outputWidth, outputHeight));
+    targetCtx.clip();
+  }
+
+  drawImageWithOrientation(targetCtx, currentImage, { x: 0, y: 0, width: outputWidth, height: outputHeight }, currentOrientation);
+
+  const modelText = exifLineText() || brandCameraModelText(defaultModelText);
+  const brandText = fallbackBrandText;
+  const textSizePercent = Number(watermarkSizeRange.value) / 100;
+  const logoSizePercent = Number(brandLogoSizeRange.value) / 100;
+  const textWeight = Number(brandTextWeightRange.value) || 600;
+  const fauxBoldStrokeWidth = Math.max(0, ((textWeight - 600) / 400) * Math.max(1, Math.round(outputWidth * 0.0014)));
+  const opacity = Number(watermarkOpacityRange.value) / 100;
+  const xPercent = Number(watermarkXRange.value) / 100;
+  const yPercent = Number(watermarkYRange.value) / 100;
+  const modelFontFamily = '"OPPO Sans", "MiSans", "Microsoft YaHei UI", "Arial", sans-serif';
+  let baseFontPx = Math.max(18, Math.round(outputWidth * 0.032));
+  let modelFontPx = Math.round(baseFontPx * 0.64 * textSizePercent);
+  let brandFontPx = Math.round(baseFontPx * logoSizePercent);
+  let gap = Math.round(baseFontPx * 0.5);
+  let dividerWidth = Math.max(2, Math.round(baseFontPx * 0.055));
+  let modelTracking = Math.max(0, Math.round(modelFontPx * 0.01));
+  let brandTracking = Math.max(2, Math.round(brandFontPx * 0.18));
+  const hasLogoAsset = brandImage.complete && brandImage.naturalWidth > 0;
+  const centerX = Math.round(outputWidth * xPercent);
+  const centerY = Math.round(outputHeight * yPercent);
+
+  targetCtx.save();
+  targetCtx.globalAlpha = opacity;
+  targetCtx.fillStyle = "#ffffff";
+  targetCtx.textAlign = "center";
+  targetCtx.textBaseline = "alphabetic";
+  targetCtx.shadowColor = "rgba(0, 0, 0, 0.2)";
+  targetCtx.shadowBlur = Math.max(1, Math.round(baseFontPx * 0.05));
+  targetCtx.shadowOffsetY = Math.max(1, Math.round(baseFontPx * 0.025));
+
+  targetCtx.font = `${textWeight} ${modelFontPx}px ${modelFontFamily}`;
+  let modelWidth = trackedTextWidth(targetCtx, modelText, modelTracking);
+  targetCtx.font = `italic 600 ${brandFontPx}px ${fontMap.system}`;
+  let logoHeight = Math.round(baseFontPx * 0.84 * logoSizePercent);
+  let brandWidth = hasLogoAsset
+    ? Math.round(logoHeight * brandRatio)
+    : targetCtx.measureText(brandText).width + brandTracking * (brandText.length - 1);
+  let totalWidth = modelWidth + gap + dividerWidth + gap + brandWidth;
+  const maxTextWidth = outputWidth * 0.7;
+  if (totalWidth > maxTextWidth) {
+    const fitScale = maxTextWidth / totalWidth;
+    baseFontPx = Math.max(14, Math.round(baseFontPx * fitScale));
+    modelFontPx = Math.round(baseFontPx * 0.64 * textSizePercent);
+    brandFontPx = Math.round(baseFontPx * logoSizePercent);
+    gap = Math.round(baseFontPx * 0.5);
+    dividerWidth = Math.max(2, Math.round(baseFontPx * 0.055));
+    modelTracking = Math.max(0, Math.round(modelFontPx * 0.01));
+    brandTracking = Math.max(1, Math.round(brandFontPx * 0.18));
+    logoHeight = Math.round(baseFontPx * 0.84 * logoSizePercent);
+    targetCtx.font = `${textWeight} ${modelFontPx}px ${modelFontFamily}`;
+    modelWidth = trackedTextWidth(targetCtx, modelText, modelTracking);
+    targetCtx.font = `italic 600 ${brandFontPx}px ${fontMap.system}`;
+    brandWidth = hasLogoAsset
+      ? Math.round(logoHeight * brandRatio)
+      : targetCtx.measureText(brandText).width + brandTracking * (brandText.length - 1);
+    totalWidth = modelWidth + gap + dividerWidth + gap + brandWidth;
+  }
+  const startX = centerX - totalWidth / 2;
+  const dividerX = startX + modelWidth + gap + dividerWidth / 2;
+  const brandX = dividerX + dividerWidth / 2 + gap + brandWidth / 2;
+
+  targetCtx.font = `${textWeight} ${modelFontPx}px ${modelFontFamily}`;
+  drawTrackedText(
+    targetCtx,
+    modelText,
+    startX + modelWidth / 2,
+    visualCenterBaseline(targetCtx, modelText, centerY),
+    modelTracking,
+    { strokeWidth: fauxBoldStrokeWidth }
+  );
+
+  targetCtx.fillRect(
+    Math.round(dividerX - dividerWidth / 2),
+    Math.round(centerY - Math.max(modelFontPx * 1.12, logoHeight * 0.92) / 2),
+    dividerWidth,
+    Math.round(Math.max(modelFontPx * 1.12, logoHeight * 0.92))
+  );
+
+  if (hasLogoAsset) {
+    targetCtx.drawImage(
+      brandImage,
+      Math.round(brandX - brandWidth / 2),
+      Math.round(centerY - logoHeight / 2),
+      brandWidth,
+      logoHeight
+    );
+  } else {
+    targetCtx.font = `italic 600 ${brandFontPx}px ${fontMap.system}`;
+    drawTrackedText(
+      targetCtx,
+      brandText,
+      brandX,
+      visualCenterBaseline(targetCtx, brandText, centerY),
+      brandTracking
+    );
+  }
+  targetCtx.restore();
+
+  if (roundedCorners) {
+    targetCtx.restore();
+  }
+}
+
+function renderHasselbladFrame(targetCanvas, maxLongSide, roundedCorners) {
+  renderBrandWatermarkFrame(targetCanvas, maxLongSide, roundedCorners, {
+    logoImage: hasselbladLogoImage,
+    logoRatio: HASSELBLAD_LOGO_RATIO,
+    defaultModelText: "OPPO Find N5",
+    fallbackBrandText: "HASSELBLAD",
+  });
+}
+
+function renderNikonFrame(targetCanvas, maxLongSide, roundedCorners) {
+  renderBrandWatermarkFrame(targetCanvas, maxLongSide, roundedCorners, {
+    logoImage: nikonLogoImage,
+    logoRatio: NIKON_LOGO_RATIO,
+    defaultModelText: "NIKON Zfc",
+    fallbackBrandText: "Nikon",
+  });
+}
+
 function renderFrame(targetCanvas, maxLongSide = 2400, options = {}) {
   const targetCtx = targetCanvas.getContext("2d");
   const roundedCorners = Boolean(options.roundedCorners);
@@ -997,8 +1449,26 @@ function renderFrame(targetCanvas, maxLongSide = 2400, options = {}) {
     return;
   }
 
-  if (currentTemplate === "galleryDark" || currentTemplate === "galleryDarkPortrait") {
+  if (currentTemplate === "galleryDark") {
     renderGalleryDarkFrame(targetCanvas, maxLongSide, roundedCorners);
+    emptyState.classList.add("hidden");
+    return;
+  }
+
+  if (currentTemplate === "watermark") {
+    renderWatermarkFrame(targetCanvas, maxLongSide, roundedCorners);
+    emptyState.classList.add("hidden");
+    return;
+  }
+
+  if (currentTemplate === "hasselblad") {
+    renderHasselbladFrame(targetCanvas, maxLongSide, roundedCorners);
+    emptyState.classList.add("hidden");
+    return;
+  }
+
+  if (currentTemplate === "nikon") {
+    renderNikonFrame(targetCanvas, maxLongSide, roundedCorners);
     emptyState.classList.add("hidden");
     return;
   }
@@ -1053,6 +1523,20 @@ function renderFrame(targetCanvas, maxLongSide = 2400, options = {}) {
     currentOrientation
   );
 
+  if (photoStroke.checked) {
+    const strokeW = Math.max(1, Math.round(outputWidth * 0.0015));
+    targetCtx.save();
+    targetCtx.strokeStyle = "#000000";
+    targetCtx.lineWidth = strokeW;
+    targetCtx.strokeRect(
+      border - strokeW / 2,
+      border - strokeW / 2,
+      size.width + strokeW,
+      size.height + strokeW
+    );
+    targetCtx.restore();
+  }
+
   targetCtx.fillStyle = textColor.value;
   targetCtx.textAlign = "center";
   targetCtx.textBaseline = "middle";
@@ -1083,6 +1567,12 @@ function previewRenderKey() {
     textColor.value,
     headlineInput.value,
     sublineInput.value,
+    String(currentExif.make || ""),
+    String(currentExif.model || ""),
+    String(currentExif.fNumber || ""),
+    String(currentExif.exposureTime || ""),
+    String(currentExif.iso || ""),
+    String(currentExif.focalLength || ""),
     headlineFontSelect.value,
     sublineFontSelect.value,
     infoFontSelect.value,
@@ -1096,6 +1586,13 @@ function previewRenderKey() {
     useExifDate.checked ? "date" : "no-date",
     useExifCamera.checked ? "camera" : "no-camera",
     exportRounded.checked ? "rounded" : "square",
+    photoStroke.checked ? "stroke" : "no-stroke",
+    watermarkXRange.value,
+    watermarkYRange.value,
+    watermarkSizeRange.value,
+    brandLogoSizeRange.value,
+    brandTextWeightRange.value,
+    watermarkOpacityRange.value,
   ].join("|");
 }
 
@@ -1165,6 +1662,43 @@ function scheduleRenderPreview() {
   }
   renderPreviewFrame = window.requestAnimationFrame(renderPreview);
 }
+
+[hasselbladLogoImage, nikonLogoImage].forEach((image) => {
+  image.addEventListener("load", () => {
+    previewCache.clear();
+    scheduleRenderPreview();
+  });
+});
+
+const selectWatermarkButton = document.getElementById("selectWatermarkButton");
+const watermarkFileName = document.getElementById("watermarkFileName");
+
+selectWatermarkButton.addEventListener("click", () => {
+  watermarkFileInput.click();
+});
+
+watermarkFileInput.addEventListener("change", (event) => {
+  const file = event.target.files[0];
+  if (!file) return;
+  
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    watermarkImage.src = e.target.result;
+    watermarkFileName.textContent = file.name;
+    previewCache.clear();
+    scheduleRenderPreview();
+    
+    if (window.borderLabDesktop?.saveWatermark) {
+      window.borderLabDesktop.saveWatermark(e.target.result, file.name);
+    }
+  };
+  reader.readAsDataURL(file);
+});
+
+watermarkImage.addEventListener("load", () => {
+  previewCache.clear();
+  scheduleRenderPreview();
+});
 
 function renderPreviewCacheForItem(item, key) {
   const previousState = {
@@ -1255,6 +1789,13 @@ function currentDesignSettings() {
     useExifDate: useExifDate.checked,
     useExifCamera: useExifCamera.checked,
     exportRounded: exportRounded.checked,
+    photoStroke: photoStroke.checked,
+    watermarkX: watermarkXRange.value,
+    watermarkY: watermarkYRange.value,
+    watermarkSize: watermarkSizeRange.value,
+    brandLogoSize: brandLogoSizeRange.value,
+    brandTextWeight: brandTextWeightRange.value,
+    watermarkOpacity: watermarkOpacityRange.value,
   };
 }
 
@@ -1264,10 +1805,32 @@ function applyDesignSettings(settings) {
   }
 
   const templateName = settings.template || currentTemplate;
-  const isYiyinTemplate = templateName === "galleryDark" || templateName === "galleryDarkPortrait";
+  const isYiyinTemplate = templateName === "galleryDark";
+  const isClassicTemplate = templateName === "classic" || templateName === "classicAlt";
+  const isWatermarkTemplate = isOverlayTemplate(templateName);
+  const isBrandWatermarkTemplate = templateName === "hasselblad" || templateName === "nikon";
   currentTemplate = templateName;
-  infoControlsRow.classList.toggle("template-hidden", isYiyinTemplate);
-  paperColorSection.classList.toggle("template-hidden", isYiyinTemplate);
+  infoControlsRow.classList.toggle("template-hidden", isYiyinTemplate || isWatermarkTemplate);
+  paperColorSection.classList.toggle("template-hidden", isYiyinTemplate || isWatermarkTemplate);
+  photoStrokeRow.classList.toggle("template-hidden", !isClassicTemplate);
+  watermarkControls.classList.toggle("hidden", !isWatermarkTemplate);
+  watermarkSelectRow.classList.toggle("hidden", templateName !== "watermark");
+  updateWatermarkControlLabels(templateName);
+  brandLogoSizeRow.classList.toggle("hidden", !isBrandWatermarkTemplate);
+  brandTextWeightRow.classList.toggle("hidden", !isBrandWatermarkTemplate);
+
+  if (isWatermarkTemplate) {
+    document.querySelectorAll(".control-panel .panel-section:not(.action-row):not(.panel-span-2)").forEach(el => {
+      if (!el.closest("#watermarkControls") && !el.closest(".brand-block")) {
+        el.classList.add("template-hidden");
+      }
+    });
+  } else {
+    document.querySelectorAll(".control-panel .panel-section.template-hidden").forEach(el => {
+      el.classList.remove("template-hidden");
+    });
+  }
+
   templateList.querySelectorAll(".template-card").forEach((button) => {
     button.classList.toggle("active", button.dataset.template === templateName);
   });
@@ -1291,6 +1854,13 @@ function applyDesignSettings(settings) {
   useExifDate.checked = settings.useExifDate ?? useExifDate.checked;
   useExifCamera.checked = settings.useExifCamera ?? useExifCamera.checked;
   exportRounded.checked = settings.exportRounded ?? exportRounded.checked;
+  photoStroke.checked = settings.photoStroke ?? photoStroke.checked;
+  watermarkXRange.value = settings.watermarkX ?? watermarkXRange.value;
+  watermarkYRange.value = settings.watermarkY ?? watermarkYRange.value;
+  watermarkSizeRange.value = settings.watermarkSize ?? watermarkSizeRange.value;
+  brandLogoSizeRange.value = settings.brandLogoSize ?? brandLogoSizeRange.value;
+  brandTextWeightRange.value = settings.brandTextWeight ?? brandTextWeightRange.value;
+  watermarkOpacityRange.value = settings.watermarkOpacity ?? watermarkOpacityRange.value;
 
   updateLabels();
   updateExportQualityState();
@@ -1419,6 +1989,11 @@ async function setCurrentPhoto(id) {
 
   currentPhotoId = item.id;
   syncCurrentPhotoState(item);
+  photoRotation = 0;
+  photoOrientation = detectOrientation(item.image);
+  if (currentTemplate !== "watermark") {
+    applyTemplate(currentTemplate);
+  }
   applyPhotoSettings(item);
   updatePhotoList();
   updateImageMetaLabel();
@@ -1434,6 +2009,10 @@ async function setCurrentPhoto(id) {
   }
 
   syncCurrentPhotoState(item);
+  photoOrientation = detectOrientation(item.image);
+  if (currentTemplate !== "watermark") {
+    applyTemplate(currentTemplate);
+  }
   previewCache.delete(item.id);
   updateImageMetaLabel();
   resetPreviewViewport();
@@ -1706,7 +2285,9 @@ async function loadPhoto(file, options = {}) {
     }
     return item;
   } catch {
-    URL.revokeObjectURL(objectUrl);
+    if (!file.url) {
+      URL.revokeObjectURL(objectUrl);
+    }
     syncCurrentPhotoState(null);
     resetPreviewViewport();
     imageMetaLabel.textContent = "载入失败";
@@ -1878,7 +2459,7 @@ async function saveBlobWithPicker(blob, fileName, mimeType) {
         mimeType,
         buffer
       });
-      return true;
+      return !result.canceled;
     }
 
     if ("showSaveFilePicker" in window) {
@@ -2047,6 +2628,13 @@ async function exportAllImages() {
   useExifDate,
   useExifCamera,
   applyAllPhotos,
+  photoStroke,
+  watermarkXRange,
+  watermarkYRange,
+  watermarkSizeRange,
+  brandLogoSizeRange,
+  brandTextWeightRange,
+  watermarkOpacityRange,
 ].forEach((element) => {
   element.addEventListener("input", () => {
     handleDesignSettingsChange();
@@ -2059,6 +2647,60 @@ async function exportAllImages() {
     updateLabels();
     syncRangeFill(element);
     scheduleRenderPreview();
+  });
+});
+
+const rangeDefaults = {
+  borderRange: 30,
+  bottomRange: 30,
+  headlineSizeRange: 65,
+  sublineSizeRange: 65,
+  infoSizeRange: 50,
+  headlineOffsetRange: 25,
+  sublineOffsetRange: 45,
+  infoOffsetRange: 62,
+  cornerRadiusRange: 50,
+  watermarkXRange: 80,
+  watermarkYRange: 80,
+  watermarkSizeRange: 97,
+  brandLogoSizeRange: 100,
+  brandTextWeightRange: 600,
+  watermarkOpacityRange: 40,
+  exportQualityRange: 100,
+};
+
+function getDefaultForRange(rangeId) {
+  const params = getTemplateParams(currentTemplate);
+  if (!params) return rangeDefaults[rangeId];
+
+  const map = {
+    borderRange: params.border,
+    bottomRange: params.bottom,
+    headlineSizeRange: params.headlineSize,
+    sublineSizeRange: params.sublineSize,
+    infoSizeRange: params.infoSize,
+    headlineOffsetRange: params.headlineOffset,
+    sublineOffsetRange: params.sublineOffset,
+    infoOffsetRange: params.infoOffset,
+    cornerRadiusRange: params.cornerRadius,
+    watermarkXRange: params.watermarkX,
+    watermarkYRange: params.watermarkY,
+    watermarkSizeRange: params.watermarkSize,
+    brandLogoSizeRange: params.brandLogoSize,
+    brandTextWeightRange: params.brandTextWeight,
+    watermarkOpacityRange: params.watermarkOpacity,
+  };
+
+  return map[rangeId] ?? rangeDefaults[rangeId];
+}
+
+document.querySelectorAll('input[type="range"]').forEach((range) => {
+  range.addEventListener("dblclick", () => {
+    const defaultVal = getDefaultForRange(range.id);
+    if (defaultVal === undefined) return;
+    range.value = String(defaultVal);
+    range.dispatchEvent(new Event("input", { bubbles: true }));
+    range.dispatchEvent(new Event("change", { bubbles: true }));
   });
 });
 
@@ -2151,8 +2793,16 @@ applyAllPhotos.addEventListener("change", () => {
   } else {
     saveCurrentPhotoSettings();
   }
+  updateApplyAllButtonState();
   scheduleRenderPreview();
 });
+applyAllButton.addEventListener("click", () => {
+  applyAllPhotos.checked = !applyAllPhotos.checked;
+  applyAllPhotos.dispatchEvent(new Event("change"));
+});
+function updateApplyAllButtonState() {
+  applyAllButton.classList.toggle("active", applyAllPhotos.checked);
+}
 clearAllPhotosButton.addEventListener("click", clearAllPhotos);
 clearPhotoButton.addEventListener("click", clearPhoto);
 exportButton.addEventListener("click", exportImage);
@@ -2203,6 +2853,14 @@ dropZone.addEventListener("drop", (event) => {
   }
 });
 
+rotateButton.addEventListener("click", () => {
+  if (!currentImage) return;
+  photoRotation = (photoRotation + 90) % 360;
+  photoOrientation = detectOrientation(currentImage);
+  applyTemplate(currentTemplate);
+  scheduleRenderPreview();
+});
+
 resetControls();
 [
   headlineFontSelect,
@@ -2217,5 +2875,24 @@ updateExportButtonText();
 refreshExportButtonText();
 updatePreviewCornerRadius();
 syncAllRangeFills();
-renderPreview();
+updateApplyAllButtonState();
+if (window.requestIdleCallback) {
+  window.requestIdleCallback(() => renderPreview());
+} else {
+  setTimeout(() => renderPreview(), 0);
+}
 window.addEventListener("resize", applyPreviewViewport);
+
+async function loadSavedWatermark() {
+  if (!window.borderLabDesktop?.loadWatermark) return;
+  try {
+    const result = await window.borderLabDesktop.loadWatermark();
+    if (result.data && result.fileName) {
+      watermarkImage.src = result.data;
+      watermarkFileName.textContent = result.fileName;
+    }
+  } catch (e) {
+    console.error("Failed to load saved watermark.", e);
+  }
+}
+loadSavedWatermark();

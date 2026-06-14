@@ -36,6 +36,7 @@ function createWindow() {
     minHeight: 760,
     autoHideMenuBar: true,
     frame: false,
+    show: false,
     backgroundColor: "#f8f5ef",
     icon: path.join(
       __dirname,
@@ -48,6 +49,10 @@ function createWindow() {
       nodeIntegration: false,
       sandbox: false
     }
+  });
+
+  win.once("ready-to-show", () => {
+    win.show();
   });
 
   win.loadFile("index.html");
@@ -177,6 +182,20 @@ ipcMain.handle("border-lab:save-files", async (_event, payload) => {
 
   await updatePreference("lastExportDir", directory);
   return { canceled: false, directory };
+});
+
+ipcMain.handle("border-lab:save-watermark", async (_event, data, fileName) => {
+  await updatePreference("watermarkData", data);
+  await updatePreference("watermarkFileName", fileName);
+  return { success: true };
+});
+
+ipcMain.handle("border-lab:load-watermark", async () => {
+  const preferences = await readPreferences();
+  return {
+    data: preferences.watermarkData || null,
+    fileName: preferences.watermarkFileName || null
+  };
 });
 
 app.whenReady().then(() => {
