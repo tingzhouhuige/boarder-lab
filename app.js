@@ -725,6 +725,22 @@ function parseIfd(view, start, littleEndian, tiffStart) {
   return data;
 }
 
+function parseXmpLensInfo(view, dataOffset, dataLength) {
+  const chunkSize = Math.min(dataLength, 65536);
+  const bytes = new Uint8Array(dataLength);
+  for (let i = 0; i < chunkSize; i++) {
+    bytes[i] = view.getUint8(dataOffset + i);
+  }
+  const xmp = new TextDecoder("utf-8").decode(bytes);
+
+  const lensModelMatch = xmp.match(/exifEX:LensModel="([^"]+)"/) || xmp.match(/aux:Lens="([^"]+)"/);
+  if (lensModelMatch) {
+    return { lensModel: lensModelMatch[1] };
+  }
+
+  return null;
+}
+
 function parseExif(buffer) {
   const view = new DataView(buffer);
   if (view.byteLength < 4 || view.getUint16(0) !== 0xffd8) {
@@ -732,6 +748,9 @@ function parseExif(buffer) {
   }
 
   let offset = 2;
+  let exifResult = null;
+  let xmpLensData = null;
+
   while (offset + 4 < view.byteLength) {
     const marker = view.getUint16(offset);
     offset += 2;
@@ -746,41 +765,55 @@ function parseExif(buffer) {
       continue;
     }
 
-    if (view.getUint32(offset + 2) !== 0x45786966) {
-      offset += length;
-      continue;
+    const segHeader = view.getUint32(offset + 2);
+
+    if (segHeader === 0x45786966) {
+      const tiffStart = offset + 8;
+      const littleEndian = view.getUint16(tiffStart) === 0x4949;
+      if (view.getUint16(tiffStart + 2, littleEndian) !== 42) {
+        return {};
+      }
+
+      const ifdOffset = view.getUint32(tiffStart + 4, littleEndian);
+      const baseIfd = parseIfd(view, tiffStart + ifdOffset, littleEndian, tiffStart);
+      const exifIfdOffset = baseIfd[0x8769];
+      const exifIfd = exifIfdOffset ? parseIfd(view, tiffStart + exifIfdOffset, littleEndian, tiffStart) : {};
+
+      exifResult = {
+        make: baseIfd[0x010f] || "",
+        model: baseIfd[0x0110] || "",
+        orientation: baseIfd[0x0112] || 1,
+        modifyDate: baseIfd[0x0132] || "",
+        dateTimeOriginal: exifIfd[0x9003] || "",
+        createDate: exifIfd[0x9004] || "",
+        lensModel: exifIfd[0xa434] || "",
+        exposureTime: exifIfd[0x829a] || 0,
+        fNumber: exifIfd[0x829d] || 0,
+        iso: exifIfd[0x8827] || 0,
+        focalLength: exifIfd[0x920a] || 0,
+        focalLengthIn35mm: exifIfd[0xa405] || 0,
+        pixelXDimension: exifIfd[0xa002] || 0,
+        pixelYDimension: exifIfd[0xa003] || 0,
+      };
+    } else if (length > 10) {
+      const ascii = String.fromCharCode(
+        view.getUint8(offset + 2), view.getUint8(offset + 3),
+        view.getUint8(offset + 4), view.getUint8(offset + 5),
+        view.getUint8(offset + 6)
+      );
+      if (ascii.startsWith('http')) {
+        xmpLensData = parseXmpLensInfo(view, offset + 2, length - 2);
+      }
     }
 
-    const tiffStart = offset + 8;
-    const littleEndian = view.getUint16(tiffStart) === 0x4949;
-    if (view.getUint16(tiffStart + 2, littleEndian) !== 42) {
-      return {};
-    }
-
-    const ifdOffset = view.getUint32(tiffStart + 4, littleEndian);
-    const baseIfd = parseIfd(view, tiffStart + ifdOffset, littleEndian, tiffStart);
-    const exifIfdOffset = baseIfd[0x8769];
-    const exifIfd = exifIfdOffset ? parseIfd(view, tiffStart + exifIfdOffset, littleEndian, tiffStart) : {};
-
-    return {
-      make: baseIfd[0x010f] || "",
-      model: baseIfd[0x0110] || "",
-      orientation: baseIfd[0x0112] || 1,
-      modifyDate: baseIfd[0x0132] || "",
-      dateTimeOriginal: exifIfd[0x9003] || "",
-      createDate: exifIfd[0x9004] || "",
-      lensModel: exifIfd[0xa434] || "",
-      exposureTime: exifIfd[0x829a] || 0,
-      fNumber: exifIfd[0x829d] || 0,
-      iso: exifIfd[0x8827] || 0,
-      focalLength: exifIfd[0x920a] || 0,
-      focalLengthIn35mm: exifIfd[0xa405] || 0,
-      pixelXDimension: exifIfd[0xa002] || 0,
-      pixelYDimension: exifIfd[0xa003] || 0,
-    };
+    offset += length;
   }
 
-  return {};
+  if (exifResult && !exifResult.lensModel && xmpLensData) {
+    exifResult.lensModel = xmpLensData.lensModel;
+  }
+
+  return exifResult || {};
 }
 
 function extractExifSegment(buffer) {
