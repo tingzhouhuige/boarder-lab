@@ -27,7 +27,6 @@ const cornerRadiusValue = document.getElementById("cornerRadiusValue");
 const useExifDate = document.getElementById("useExifDate");
 const useExifCamera = document.getElementById("useExifCamera");
 const exportRounded = document.getElementById("exportRounded");
-const applyAllPhotos = document.getElementById("applyAllPhotos");
 const applyAllButton = document.getElementById("applyAllButton");
 const exportButton = document.getElementById("exportButton");
 const exportAllButton = document.getElementById("exportAllButton");
@@ -287,6 +286,14 @@ function detectOrientation(image) {
   return w >= h ? "landscape" : "portrait";
 }
 
+function detectImportedPhotoOrientation(item) {
+  if (!item?.image) return "landscape";
+  const exifRotated = [5, 6, 7, 8].includes(Number(item.orientation));
+  const width = exifRotated ? item.image.naturalHeight : item.image.naturalWidth;
+  const height = exifRotated ? item.image.naturalWidth : item.image.naturalHeight;
+  return width >= height ? "landscape" : "portrait";
+}
+
 function getFontFamily(key) {
   return fontMap[key] || fontMap.yahei;
 }
@@ -303,6 +310,31 @@ function updateWatermarkControlLabels(name) {
   watermarkOpacityLabel.textContent = isBrandWatermarkTemplate ? "信息透明度" : "水印透明度";
   brandLogoSizeRow.classList.toggle("hidden", !isBrandWatermarkTemplate);
   brandTextWeightRow.classList.toggle("hidden", !isBrandWatermarkTemplate);
+}
+
+function updateTemplateControlVisibility(name) {
+  const isYiyinTemplate = name === "galleryDark";
+  const isClassicTemplate = name === "classic";
+  const isOverlayWatermarkTemplate = isOverlayTemplate(name);
+
+  document.querySelectorAll(".control-panel .template-hidden").forEach((element) => {
+    element.classList.remove("template-hidden");
+  });
+
+  if (isOverlayWatermarkTemplate) {
+    document.querySelectorAll(".control-panel .panel-section:not(.action-row):not(.panel-span-2)").forEach((element) => {
+      if (!element.closest("#watermarkControls") && !element.closest(".brand-block")) {
+        element.classList.add("template-hidden");
+      }
+    });
+  }
+
+  infoControlsRow.classList.toggle("template-hidden", isYiyinTemplate || isOverlayWatermarkTemplate);
+  paperColorSection.classList.toggle("template-hidden", isYiyinTemplate || isOverlayWatermarkTemplate);
+  photoStrokeRow.classList.toggle("template-hidden", !isClassicTemplate);
+  watermarkControls.classList.toggle("hidden", !isOverlayWatermarkTemplate);
+  watermarkSelectRow.classList.toggle("hidden", name !== "watermark");
+  updateWatermarkControlLabels(name);
 }
 
 function enhanceSelect(select) {
@@ -398,30 +430,10 @@ function applyTemplate(name) {
     return;
   }
   currentTemplate = name;
-  const isYiyinTemplate = name === "galleryDark";
-  const isClassicTemplate = name === "classic";
-  const isWatermarkTemplate = name === "watermark";
   const isBrandWatermarkTemplate = name === "hasselblad" || name === "nikon";
   const isOverlayWatermarkTemplate = isOverlayTemplate(name);
   const params = getTemplateParams(name);
-  infoControlsRow.classList.toggle("template-hidden", isYiyinTemplate || isOverlayWatermarkTemplate);
-  paperColorSection.classList.toggle("template-hidden", isYiyinTemplate || isOverlayWatermarkTemplate);
-  photoStrokeRow.classList.toggle("template-hidden", !isClassicTemplate);
-  watermarkControls.classList.toggle("hidden", !isOverlayWatermarkTemplate);
-  watermarkSelectRow.classList.toggle("hidden", !isWatermarkTemplate);
-  updateWatermarkControlLabels(name);
-
-  if (isOverlayWatermarkTemplate) {
-    document.querySelectorAll(".control-panel .panel-section:not(.action-row):not(.panel-span-2)").forEach(el => {
-      if (!el.closest("#watermarkControls") && !el.closest(".brand-block")) {
-        el.classList.add("template-hidden");
-      }
-    });
-  } else {
-    document.querySelectorAll(".control-panel .panel-section.template-hidden").forEach(el => {
-      el.classList.remove("template-hidden");
-    });
-  }
+  updateTemplateControlVisibility(name);
 
   if (isOverlayWatermarkTemplate) {
     watermarkXRange.value = String(params.watermarkX);
@@ -502,11 +514,25 @@ function getBorderPaddingPercent() {
 }
 
 function syncRangeFill(range) {
+  if (!range?.matches('input[type="range"]')) {
+    return;
+  }
+
   const min = Number(range.min || 0);
   const max = Number(range.max || 100);
   const value = Number(range.value || 0);
-  const percent = ((value - min) / (max - min)) * 100;
-  range.style.setProperty("--range-progress", `${percent}%`);
+  const ratio = max === min ? 0 : Math.min(1, Math.max(0, (value - min) / (max - min)));
+  const styles = window.getComputedStyle(range);
+  const horizontalPadding = parseFloat(styles.paddingLeft) + parseFloat(styles.paddingRight);
+  const trackWidth = Math.max(0, range.clientWidth - horizontalPadding);
+  const thumbSize = 15;
+
+  if (trackWidth > 0) {
+    const thumbCenter = thumbSize / 2 + ratio * Math.max(0, trackWidth - thumbSize);
+    range.style.setProperty("--range-progress", `${thumbCenter}px`);
+  } else {
+    range.style.setProperty("--range-progress", `${ratio * 100}%`);
+  }
 }
 
 function syncAllRangeFills() {
@@ -540,7 +566,6 @@ function resetControls() {
   useExifCamera.checked = true;
   exportRounded.checked = false;
   photoStroke.checked = false;
-  applyAllPhotos.checked = true;
   watermarkXRange.value = "50";
   watermarkYRange.value = "97";
   watermarkSizeRange.value = "15";
@@ -856,21 +881,87 @@ function extractExifSegment(buffer) {
   return null;
 }
 
-async function mergeExifIntoJpegBlob(jpegBlob, sourceBuffer) {
+function findIfdEntry(view, tiffStart, ifdOffset, targetTag, littleEndian) {
+  const entryStart = tiffStart + ifdOffset;
+  if (entryStart < 0 || entryStart + 2 > view.byteLength) {
+    return null;
+  }
+
+  const entryCount = view.getUint16(entryStart, littleEndian);
+  for (let index = 0; index < entryCount; index += 1) {
+    const entryOffset = entryStart + 2 + index * 12;
+    if (entryOffset + 12 > view.byteLength) {
+      return null;
+    }
+    if (view.getUint16(entryOffset, littleEndian) === targetTag) {
+      return entryOffset;
+    }
+  }
+  return null;
+}
+
+function setIfdNumericValue(view, entryOffset, value, littleEndian) {
+  if (entryOffset === null) {
+    return;
+  }
+  const type = view.getUint16(entryOffset + 2, littleEndian);
+  const count = view.getUint32(entryOffset + 4, littleEndian);
+  if (count !== 1) {
+    return;
+  }
+  if (type === 3) {
+    view.setUint16(entryOffset + 8, Math.min(0xffff, value), littleEndian);
+  } else if (type === 4) {
+    view.setUint32(entryOffset + 8, value, littleEndian);
+  }
+}
+
+function normalizeExportExif(exifSegment, outputWidth, outputHeight) {
+  const normalized = exifSegment.slice();
+  const view = new DataView(normalized.buffer, normalized.byteOffset, normalized.byteLength);
+  const tiffStart = 10;
+  if (view.byteLength < tiffStart + 8) {
+    return normalized;
+  }
+
+  const byteOrder = view.getUint16(tiffStart);
+  const littleEndian = byteOrder === 0x4949;
+  if (!littleEndian && byteOrder !== 0x4d4d) {
+    return normalized;
+  }
+
+  const baseIfdOffset = view.getUint32(tiffStart + 4, littleEndian);
+  const orientationEntry = findIfdEntry(view, tiffStart, baseIfdOffset, 0x0112, littleEndian);
+  setIfdNumericValue(view, orientationEntry, 1, littleEndian);
+
+  const exifPointerEntry = findIfdEntry(view, tiffStart, baseIfdOffset, 0x8769, littleEndian);
+  if (exifPointerEntry !== null) {
+    const exifIfdOffset = view.getUint32(exifPointerEntry + 8, littleEndian);
+    const widthEntry = findIfdEntry(view, tiffStart, exifIfdOffset, 0xa002, littleEndian);
+    const heightEntry = findIfdEntry(view, tiffStart, exifIfdOffset, 0xa003, littleEndian);
+    setIfdNumericValue(view, widthEntry, outputWidth, littleEndian);
+    setIfdNumericValue(view, heightEntry, outputHeight, littleEndian);
+  }
+
+  return normalized;
+}
+
+async function mergeExifIntoJpegBlob(jpegBlob, sourceBuffer, outputWidth, outputHeight) {
   const exifSegment = extractExifSegment(sourceBuffer);
   if (!exifSegment) {
     return jpegBlob;
   }
+  const normalizedExifSegment = normalizeExportExif(exifSegment, outputWidth, outputHeight);
 
   const jpegBytes = new Uint8Array(await jpegBlob.arrayBuffer());
   if (jpegBytes.length < 4 || jpegBytes[0] !== 0xff || jpegBytes[1] !== 0xd8) {
     return jpegBlob;
   }
 
-  const merged = new Uint8Array(2 + exifSegment.length + (jpegBytes.length - 2));
+  const merged = new Uint8Array(2 + normalizedExifSegment.length + (jpegBytes.length - 2));
   merged.set(jpegBytes.slice(0, 2), 0);
-  merged.set(exifSegment, 2);
-  merged.set(jpegBytes.slice(2), 2 + exifSegment.length);
+  merged.set(normalizedExifSegment, 2);
+  merged.set(jpegBytes.slice(2), 2 + normalizedExifSegment.length);
 
   return new Blob([merged], { type: "image/jpeg" });
 }
@@ -1344,7 +1435,7 @@ function renderBrandWatermarkFrame(targetCanvas, maxLongSide, roundedCorners, op
 
   drawImageWithOrientation(targetCtx, currentImage, { x: 0, y: 0, width: outputWidth, height: outputHeight }, currentOrientation);
 
-  const modelText = exifLineText() || brandCameraModelText(defaultModelText);
+  const modelText = brandCameraModelText(defaultModelText);
   const brandText = fallbackBrandText;
   const textSizePercent = Number(watermarkSizeRange.value) / 100;
   const logoSizePercent = Number(brandLogoSizeRange.value) / 100;
@@ -1612,9 +1703,9 @@ function previewRenderKey() {
     sublineOffsetRange.value,
     infoOffsetRange.value,
     cornerRadiusRange.value,
+    photoRotation,
     useExifDate.checked ? "date" : "no-date",
     useExifCamera.checked ? "camera" : "no-camera",
-    exportRounded.checked ? "rounded" : "square",
     photoStroke.checked ? "stroke" : "no-stroke",
     watermarkXRange.value,
     watermarkYRange.value,
@@ -1817,7 +1908,6 @@ function currentDesignSettings() {
     cornerRadius: cornerRadiusRange.value,
     useExifDate: useExifDate.checked,
     useExifCamera: useExifCamera.checked,
-    exportRounded: exportRounded.checked,
     photoStroke: photoStroke.checked,
     watermarkX: watermarkXRange.value,
     watermarkY: watermarkYRange.value,
@@ -1834,31 +1924,8 @@ function applyDesignSettings(settings) {
   }
 
   const templateName = settings.template || currentTemplate;
-  const isYiyinTemplate = templateName === "galleryDark";
-  const isClassicTemplate = templateName === "classic" || templateName === "classicAlt";
-  const isWatermarkTemplate = isOverlayTemplate(templateName);
-  const isBrandWatermarkTemplate = templateName === "hasselblad" || templateName === "nikon";
   currentTemplate = templateName;
-  infoControlsRow.classList.toggle("template-hidden", isYiyinTemplate || isWatermarkTemplate);
-  paperColorSection.classList.toggle("template-hidden", isYiyinTemplate || isWatermarkTemplate);
-  photoStrokeRow.classList.toggle("template-hidden", !isClassicTemplate);
-  watermarkControls.classList.toggle("hidden", !isWatermarkTemplate);
-  watermarkSelectRow.classList.toggle("hidden", templateName !== "watermark");
-  updateWatermarkControlLabels(templateName);
-  brandLogoSizeRow.classList.toggle("hidden", !isBrandWatermarkTemplate);
-  brandTextWeightRow.classList.toggle("hidden", !isBrandWatermarkTemplate);
-
-  if (isWatermarkTemplate) {
-    document.querySelectorAll(".control-panel .panel-section:not(.action-row):not(.panel-span-2)").forEach(el => {
-      if (!el.closest("#watermarkControls") && !el.closest(".brand-block")) {
-        el.classList.add("template-hidden");
-      }
-    });
-  } else {
-    document.querySelectorAll(".control-panel .panel-section.template-hidden").forEach(el => {
-      el.classList.remove("template-hidden");
-    });
-  }
+  updateTemplateControlVisibility(templateName);
 
   templateList.querySelectorAll(".template-card").forEach((button) => {
     button.classList.toggle("active", button.dataset.template === templateName);
@@ -1882,7 +1949,6 @@ function applyDesignSettings(settings) {
   cornerRadiusRange.value = settings.cornerRadius ?? cornerRadiusRange.value;
   useExifDate.checked = settings.useExifDate ?? useExifDate.checked;
   useExifCamera.checked = settings.useExifCamera ?? useExifCamera.checked;
-  exportRounded.checked = settings.exportRounded ?? exportRounded.checked;
   photoStroke.checked = settings.photoStroke ?? photoStroke.checked;
   watermarkXRange.value = settings.watermarkX ?? watermarkXRange.value;
   watermarkYRange.value = settings.watermarkY ?? watermarkYRange.value;
@@ -1907,11 +1973,12 @@ function saveCurrentPhotoSettings() {
   const item = photoItems.find((photo) => photo.id === currentPhotoId);
   if (item) {
     item.settings = currentDesignSettings();
+    item.settingsInitialized = true;
   }
 }
 
 function applyPhotoSettings(item) {
-  if (applyAllPhotos.checked || !item?.settings) {
+  if (!item?.settings) {
     return;
   }
 
@@ -1922,18 +1989,15 @@ function syncAllPhotoSettings() {
   const settings = currentDesignSettings();
   photoItems.forEach((item) => {
     item.settings = { ...settings };
+    item.settingsInitialized = true;
   });
   previewCache.clear();
 }
 
 function handleDesignSettingsChange() {
-  if (applyAllPhotos.checked) {
-    syncAllPhotoSettings();
-  } else {
-    saveCurrentPhotoSettings();
-    if (currentPhotoId) {
-      previewCache.delete(currentPhotoId);
-    }
+  saveCurrentPhotoSettings();
+  if (currentPhotoId) {
+    previewCache.delete(currentPhotoId);
   }
 }
 
@@ -2019,10 +2083,7 @@ async function setCurrentPhoto(id) {
   currentPhotoId = item.id;
   syncCurrentPhotoState(item);
   photoRotation = 0;
-  photoOrientation = detectOrientation(item.image);
-  if (currentTemplate !== "watermark") {
-    applyTemplate(currentTemplate);
-  }
+  photoOrientation = item.layoutOrientation || detectOrientation(item.image);
   applyPhotoSettings(item);
   updatePhotoList();
   updateImageMetaLabel();
@@ -2038,9 +2099,14 @@ async function setCurrentPhoto(id) {
   }
 
   syncCurrentPhotoState(item);
-  photoOrientation = detectOrientation(item.image);
-  if (currentTemplate !== "watermark") {
-    applyTemplate(currentTemplate);
+  item.layoutOrientation = detectImportedPhotoOrientation(item);
+  photoOrientation = item.layoutOrientation;
+  if (!item.settingsInitialized) {
+    applyTemplate(item.settings?.template || currentTemplate);
+    item.settings = currentDesignSettings();
+    item.settingsInitialized = true;
+  } else {
+    applyPhotoSettings(item);
   }
   previewCache.delete(item.id);
   updateImageMetaLabel();
@@ -2204,7 +2270,7 @@ async function ensurePhotoThumbnail(item) {
   }
   if (!item.thumbnailPromise) {
     item.thumbnailPromise = (async () => {
-      await ensurePhotoImage(item);
+      await Promise.all([ensurePhotoImage(item), ensurePhotoMetadata(item)]);
       const thumbnail = createPhotoThumbnail(item.image, item.orientation);
       item.thumbnailUrl = thumbnail.url;
       item.thumbnailAspectRatio = thumbnail.aspectRatio;
@@ -2298,11 +2364,13 @@ async function loadPhoto(file, options = {}) {
       thumbnailPromise: null,
       exif: {},
       orientation: 1,
+      layoutOrientation: null,
       buffer: arrayBufferFromData(file.data),
       desktopPath: file.path || "",
       needsMetadata: true,
       metadataPromise: null,
       settings: currentDesignSettings(),
+      settingsInitialized: false,
     };
     nextPhotoId += 1;
     photoItems.push(item);
@@ -2473,7 +2541,7 @@ async function createExportBlob() {
   }
 
   if (!shouldExportRounded && currentFile?.type === "image/jpeg" && currentFileBuffer) {
-    return mergeExifIntoJpegBlob(blob, currentFileBuffer);
+    return mergeExifIntoJpegBlob(blob, currentFileBuffer, exportCanvas.width, exportCanvas.height);
   }
 
   return blob;
@@ -2549,9 +2617,6 @@ async function exportImage() {
 }
 
 async function createExportRecord(item, usedNames) {
-  if (!applyAllPhotos.checked && item?.settings) {
-    applyDesignSettings(item.settings);
-  }
   currentPhotoId = item.id;
   syncCurrentPhotoState(item);
   await Promise.all([
@@ -2559,6 +2624,15 @@ async function createExportRecord(item, usedNames) {
     ensurePhotoMetadata(item),
   ]);
   syncCurrentPhotoState(item);
+  item.layoutOrientation = detectImportedPhotoOrientation(item);
+  photoOrientation = item.layoutOrientation;
+  if (!item.settingsInitialized) {
+    applyTemplate(item.settings?.template || currentTemplate);
+    item.settings = currentDesignSettings();
+    item.settingsInitialized = true;
+  } else {
+    applyPhotoSettings(item);
+  }
   const blob = await createExportBlob();
   if (!blob) {
     return null;
@@ -2576,6 +2650,7 @@ async function exportAllImages() {
     return;
   }
 
+  saveCurrentPhotoSettings();
   const originalId = currentPhotoId;
   const originalSettings = currentDesignSettings();
   const usedNames = new Set();
@@ -2656,7 +2731,6 @@ async function exportAllImages() {
   cornerRadiusRange,
   useExifDate,
   useExifCamera,
-  applyAllPhotos,
   photoStroke,
   watermarkXRange,
   watermarkYRange,
@@ -2815,22 +2889,21 @@ exportRounded.addEventListener("change", () => {
   refreshExportButtonText();
   updatePreviewCornerRadius();
   updateExportQualityState();
-});
-applyAllPhotos.addEventListener("change", () => {
-  if (applyAllPhotos.checked) {
-    syncAllPhotoSettings();
-  } else {
-    saveCurrentPhotoSettings();
-  }
-  updateApplyAllButtonState();
   scheduleRenderPreview();
 });
 applyAllButton.addEventListener("click", () => {
-  applyAllPhotos.checked = !applyAllPhotos.checked;
-  applyAllPhotos.dispatchEvent(new Event("change"));
+  saveCurrentPhotoSettings();
+  syncAllPhotoSettings();
+  showApplyAllFeedback();
 });
-function updateApplyAllButtonState() {
-  applyAllButton.classList.toggle("active", applyAllPhotos.checked);
+function showApplyAllFeedback() {
+  applyAllButton.classList.add("active");
+  applyAllButton.setAttribute("aria-label", "已将当前设置应用到全部照片");
+  window.clearTimeout(applyAllButton.feedbackTimer);
+  applyAllButton.feedbackTimer = window.setTimeout(() => {
+    applyAllButton.classList.remove("active");
+    applyAllButton.setAttribute("aria-label", "将当前设置应用到全部照片");
+  }, 600);
 }
 clearAllPhotosButton.addEventListener("click", clearAllPhotos);
 clearPhotoButton.addEventListener("click", clearPhoto);
@@ -2858,6 +2931,7 @@ templateList.addEventListener("click", (event) => {
 
 resetButton.addEventListener("click", () => {
   resetControls();
+  handleDesignSettingsChange();
   resetPreviewViewport();
   scheduleRenderPreview();
 });
@@ -2885,8 +2959,6 @@ dropZone.addEventListener("drop", (event) => {
 rotateButton.addEventListener("click", () => {
   if (!currentImage) return;
   photoRotation = (photoRotation + 90) % 360;
-  photoOrientation = detectOrientation(currentImage);
-  applyTemplate(currentTemplate);
   scheduleRenderPreview();
 });
 
@@ -2904,13 +2976,15 @@ updateExportButtonText();
 refreshExportButtonText();
 updatePreviewCornerRadius();
 syncAllRangeFills();
-updateApplyAllButtonState();
 if (window.requestIdleCallback) {
   window.requestIdleCallback(() => renderPreview());
 } else {
   setTimeout(() => renderPreview(), 0);
 }
-window.addEventListener("resize", applyPreviewViewport);
+window.addEventListener("resize", () => {
+  applyPreviewViewport();
+  syncAllRangeFills();
+});
 
 async function loadSavedWatermark() {
   if (!window.borderLabDesktop?.loadWatermark) return;

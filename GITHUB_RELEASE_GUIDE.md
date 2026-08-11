@@ -1,4 +1,4 @@
-# GitHub Release 发布说明
+# GitHub Release v1.0.5 发布说明
 
 ## 建议上传内容
 
@@ -7,23 +7,24 @@
 - `app.js`
 - `assets/`
 - `README.md`
-- `RELEASE_NOTES_v1.0.1.md`
+- `RELEASE_NOTES_v1.0.5.md`
+- `dist/Border Lab 1.0.5.exe`
 
 ## 推荐发布步骤
 
 1. 把项目推送到 GitHub 仓库
-2. 在仓库中创建 Tag：`v1.0.1`
+2. 在仓库中创建 Tag：`v1.0.5`
 3. 打开仓库 `Releases`
 4. 点击 `Draft a new release`
-5. 选择 `v1.0.1`
-6. 标题填写：`边框实验室 v1.0.1`
-7. 将 `RELEASE_NOTES_v1.0.1.md` 中内容粘贴到说明区
-8. 上传发布压缩包
+5. 选择 `v1.0.5`
+6. 标题填写：`边框实验室 v1.0.5`
+7. 将 `RELEASE_NOTES_v1.0.5.md` 中内容粘贴到说明区
+8. 上传 `Border Lab 1.0.5.exe`
 9. 点击发布
 
 ## 压缩包建议命名
 
-`Border-Lab-Setup-1.0.1-yellow-icon.zip`
+`Border Lab 1.0.5.exe`
 
 ## 适合放入压缩包的文件
 
@@ -33,5 +34,5 @@ styles.css
 app.js
 assets/
 README.md
-RELEASE_NOTES_v1.0.1.md
+RELEASE_NOTES_v1.0.5.md
 ```
