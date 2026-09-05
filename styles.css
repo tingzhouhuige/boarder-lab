@@ -512,8 +512,12 @@ body::after {
 
 .preview-tool-button.active {
   border-color: var(--accent);
-  background: linear-gradient(180deg, rgba(255, 212, 59, 0.26), rgba(224, 177, 0, 0.12));
-  box-shadow: 0 0 0 1px rgba(255, 212, 59, 0.28), 0 16px 30px rgba(224, 177, 0, 0.16);
+  background: linear-gradient(180deg, #ffd84d, #f9bc1c);
+  box-shadow: 0 0 0 1px rgba(255, 212, 59, 0.52), 0 16px 30px rgba(224, 177, 0, 0.28);
+}
+
+#applyAllButton.active:hover {
+  background: linear-gradient(180deg, #ffdd62, #f9bc1c);
 }
 
 .preview-icon-button {
@@ -558,8 +562,12 @@ body::after {
 }
 
 .preview-tool-button.active .sync-icon::after {
-  background: rgba(249, 188, 28, 0.15);
-  border-color: #f9bc1c;
+  background: rgba(255, 255, 255, 0.42);
+  border-color: #5c4610;
+}
+
+.preview-tool-button.active .sync-icon::before {
+  border-color: #5c4610;
 }
 
 .trash-icon {
@@ -1415,6 +1423,34 @@ input[type="color"]::-moz-color-swatch {
   transform-origin: center center;
   transition: transform 120ms ease-out;
   will-change: transform;
+}
+
+#previewCanvas.has-editable-text {
+  cursor: text;
+}
+
+.inline-watermark-editor {
+  position: absolute;
+  z-index: 8;
+  min-width: 180px;
+  height: 40px;
+  padding: 0;
+  border: 0;
+  border-bottom: 0;
+  border-radius: 0;
+  background: transparent;
+  color: inherit;
+  font-family: "Microsoft YaHei UI", "Microsoft YaHei", sans-serif;
+  text-align: center;
+  outline: none;
+  box-shadow: none;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.34);
+  pointer-events: auto;
+  touch-action: auto;
+}
+
+.inline-watermark-editor::selection {
+  background: rgba(249, 188, 28, 0.34);
 }
 
 .canvas-frame.is-zoomed {

@@ -97,8 +97,13 @@ let previewDragOriginY = 0;
 let photoItems = [];
 let currentPhotoId = null;
 let nextPhotoId = 1;
-let previewWarmupHandle = null;
 let renderPreviewFrame = null;
+let manualExifText = null;
+let manualBrandModelText = null;
+let previewTextRegions = [];
+let inlineWatermarkEditor = null;
+let activeInlineEditKind = null;
+let applyToAllEnabled = false;
 
 const PREVIEW_LONG_SIDE = 2400;
 const MAX_PREVIEW_CACHE_ITEMS = 5;
@@ -289,8 +294,11 @@ function detectOrientation(image) {
 function detectImportedPhotoOrientation(item) {
   if (!item?.image) return "landscape";
   const exifRotated = [5, 6, 7, 8].includes(Number(item.orientation));
-  const width = exifRotated ? item.image.naturalHeight : item.image.naturalWidth;
-  const height = exifRotated ? item.image.naturalWidth : item.image.naturalHeight;
+  const manuallyRotated = Number(item.rotation || 0) % 180 !== 0;
+  const orientedWidth = exifRotated ? item.image.naturalHeight : item.image.naturalWidth;
+  const orientedHeight = exifRotated ? item.image.naturalWidth : item.image.naturalHeight;
+  const width = manuallyRotated ? orientedHeight : orientedWidth;
+  const height = manuallyRotated ? orientedWidth : orientedHeight;
   return width >= height ? "landscape" : "portrait";
 }
 
@@ -522,17 +530,7 @@ function syncRangeFill(range) {
   const max = Number(range.max || 100);
   const value = Number(range.value || 0);
   const ratio = max === min ? 0 : Math.min(1, Math.max(0, (value - min) / (max - min)));
-  const styles = window.getComputedStyle(range);
-  const horizontalPadding = parseFloat(styles.paddingLeft) + parseFloat(styles.paddingRight);
-  const trackWidth = Math.max(0, range.clientWidth - horizontalPadding);
-  const thumbSize = 15;
-
-  if (trackWidth > 0) {
-    const thumbCenter = thumbSize / 2 + ratio * Math.max(0, trackWidth - thumbSize);
-    range.style.setProperty("--range-progress", `${thumbCenter}px`);
-  } else {
-    range.style.setProperty("--range-progress", `${ratio * 100}%`);
-  }
+  range.style.setProperty("--range-progress", `${ratio * 100}%`);
 }
 
 function syncAllRangeFills() {
@@ -572,6 +570,8 @@ function resetControls() {
   brandLogoSizeRange.value = "100";
   brandTextWeightRange.value = "600";
   watermarkOpacityRange.value = "70";
+  manualExifText = null;
+  manualBrandModelText = null;
   applyTemplate(currentTemplate);
   updateExportButtonLabel();
   updateExportButtonText();
@@ -973,6 +973,10 @@ function cameraText() {
 }
 
 function brandCameraModelText(fallbackText = "OPPO Find N5") {
+  if (manualBrandModelText !== null) {
+    return manualBrandModelText;
+  }
+
   const make = String(currentExif.make || "").trim();
   const model = String(currentExif.model || "").trim();
   if (model) {
@@ -1018,6 +1022,10 @@ function sublineText() {
 }
 
 function exifLineText() {
+  if (manualExifText !== null) {
+    return manualExifText;
+  }
+
   const parts = [];
   const aperture = formatAperture(Number(currentExif.fNumber));
   const exposure = formatExposure(Number(currentExif.exposureTime));
@@ -1042,8 +1050,11 @@ function exifLineText() {
 
 function drawImageWithOrientation(targetCtx, image, box, orientation) {
   const rotated = [5, 6, 7, 8].includes(orientation);
-  const sourceWidth = rotated ? image.naturalHeight : image.naturalWidth;
-  const sourceHeight = rotated ? image.naturalWidth : image.naturalHeight;
+  const manuallyRotated = photoRotation % 180 !== 0;
+  const orientedWidth = rotated ? image.naturalHeight : image.naturalWidth;
+  const orientedHeight = rotated ? image.naturalWidth : image.naturalHeight;
+  const sourceWidth = manuallyRotated ? orientedHeight : orientedWidth;
+  const sourceHeight = manuallyRotated ? orientedWidth : orientedHeight;
   const scale = Math.min(box.width / sourceWidth, box.height / sourceHeight);
   const drawWidth = sourceWidth * scale;
   const drawHeight = sourceHeight * scale;
@@ -1248,8 +1259,11 @@ function scaledImageSize() {
 
 function scaledImageSizeForMaxLongSide(maxLongSide) {
   const rotated = [5, 6, 7, 8].includes(currentOrientation);
-  const width = rotated ? currentImage.naturalHeight : currentImage.naturalWidth;
-  const height = rotated ? currentImage.naturalWidth : currentImage.naturalHeight;
+  const manuallyRotated = photoRotation % 180 !== 0;
+  const orientedWidth = rotated ? currentImage.naturalHeight : currentImage.naturalWidth;
+  const orientedHeight = rotated ? currentImage.naturalWidth : currentImage.naturalHeight;
+  const width = manuallyRotated ? orientedHeight : orientedWidth;
+  const height = manuallyRotated ? orientedWidth : orientedHeight;
   const longSide = Math.max(width, height);
   const scale = Number.isFinite(maxLongSide) && maxLongSide > 0 && longSide > maxLongSide
     ? maxLongSide / longSide
@@ -1323,13 +1337,33 @@ function renderGalleryDarkFrame(targetCanvas, maxLongSide, roundedCorners) {
   if (titleLine) {
     targetCtx.globalAlpha = 1;
     targetCtx.font = `${titleFontPx}px ${getFontFamily(headlineFontSelect.value)}`;
-    targetCtx.fillText(titleLine, outputWidth / 2, titleY, outputWidth * 0.84);
+    registerPreviewTextRegion(targetCanvas, {
+      kind: "galleryTitle",
+      x: outputWidth / 2 - Math.min(targetCtx.measureText(titleLine).width, outputWidth * 0.84) / 2,
+      y: titleY,
+      width: Math.min(targetCtx.measureText(titleLine).width, outputWidth * 0.84),
+      height: titleLineHeight,
+      value: titleLine,
+    });
+    if (targetCanvas !== previewCanvas || activeInlineEditKind !== "galleryTitle") {
+      targetCtx.fillText(titleLine, outputWidth / 2, titleY, outputWidth * 0.84);
+    }
   }
 
   if (detailLine) {
     targetCtx.globalAlpha = 0.92;
     targetCtx.font = `${detailFontPx}px ${getFontFamily(sublineFontSelect.value)}`;
-    targetCtx.fillText(detailLine, outputWidth / 2, detailY, outputWidth * 0.84);
+    registerPreviewTextRegion(targetCanvas, {
+      kind: "subline",
+      x: outputWidth / 2 - Math.min(targetCtx.measureText(detailLine).width, outputWidth * 0.84) / 2,
+      y: detailY,
+      width: Math.min(targetCtx.measureText(detailLine).width, outputWidth * 0.84),
+      height: detailLineHeight,
+      value: detailLine,
+    });
+    if (targetCanvas !== previewCanvas || activeInlineEditKind !== "subline") {
+      targetCtx.fillText(detailLine, outputWidth / 2, detailY, outputWidth * 0.84);
+    }
     targetCtx.globalAlpha = 1;
   }
 
@@ -1496,15 +1530,26 @@ function renderBrandWatermarkFrame(targetCanvas, maxLongSide, roundedCorners, op
   const dividerX = startX + modelWidth + gap + dividerWidth / 2;
   const brandX = dividerX + dividerWidth / 2 + gap + brandWidth / 2;
 
+  registerPreviewTextRegion(targetCanvas, {
+    kind: "brandModel",
+    x: startX,
+    y: centerY - modelFontPx,
+    width: modelWidth,
+    height: modelFontPx * 2,
+    value: modelText,
+  });
+
   targetCtx.font = `${textWeight} ${modelFontPx}px ${modelFontFamily}`;
-  drawTrackedText(
-    targetCtx,
-    modelText,
-    startX + modelWidth / 2,
-    visualCenterBaseline(targetCtx, modelText, centerY),
-    modelTracking,
-    { strokeWidth: fauxBoldStrokeWidth }
-  );
+  if (targetCanvas !== previewCanvas || activeInlineEditKind !== "brandModel") {
+    drawTrackedText(
+      targetCtx,
+      modelText,
+      startX + modelWidth / 2,
+      visualCenterBaseline(targetCtx, modelText, centerY),
+      modelTracking,
+      { strokeWidth: fauxBoldStrokeWidth }
+    );
+  }
 
   targetCtx.fillRect(
     Math.round(dividerX - dividerWidth / 2),
@@ -1556,9 +1601,23 @@ function renderNikonFrame(targetCanvas, maxLongSide, roundedCorners) {
   });
 }
 
+function registerPreviewTextRegion(targetCanvas, region) {
+  if (targetCanvas !== previewCanvas || !region.value) {
+    return;
+  }
+  const centerX = region.x + region.width / 2;
+  const hitWidth = Math.max(region.width, targetCanvas.width * 0.62);
+  const hitX = Math.max(0, Math.min(targetCanvas.width - hitWidth, centerX - hitWidth / 2));
+  previewTextRegions.push({ ...region, hitX, hitWidth });
+}
+
 function renderFrame(targetCanvas, maxLongSide = 2400, options = {}) {
   const targetCtx = targetCanvas.getContext("2d");
   const roundedCorners = Boolean(options.roundedCorners);
+
+  if (targetCanvas === previewCanvas) {
+    previewTextRegions = [];
+  }
 
   if (!currentImage) {
     targetCanvas.width = 1200;
@@ -1661,14 +1720,44 @@ function renderFrame(targetCanvas, maxLongSide = 2400, options = {}) {
   targetCtx.textAlign = "center";
   targetCtx.textBaseline = "middle";
   targetCtx.font = `${headlineFontPx}px ${headlineFontFamily}`;
-  targetCtx.fillText(mainLine, centerX, headlineY, outputWidth * 0.84);
+  registerPreviewTextRegion(targetCanvas, {
+    kind: "headline",
+    x: centerX - Math.min(targetCtx.measureText(mainLine).width, outputWidth * 0.84) / 2,
+    y: headlineY - headlineFontPx,
+    width: Math.min(targetCtx.measureText(mainLine).width, outputWidth * 0.84),
+    height: headlineFontPx * 2,
+    value: mainLine,
+  });
+  if (targetCanvas !== previewCanvas || activeInlineEditKind !== "headline") {
+    targetCtx.fillText(mainLine, centerX, headlineY, outputWidth * 0.84);
+  }
 
   targetCtx.font = `${sublineFontPx}px ${sublineFontFamily}`;
-  targetCtx.fillText(subLine, centerX, sublineY, outputWidth * 0.84);
+  registerPreviewTextRegion(targetCanvas, {
+    kind: "subline",
+    x: centerX - Math.min(targetCtx.measureText(subLine).width, outputWidth * 0.84) / 2,
+    y: sublineY - sublineFontPx,
+    width: Math.min(targetCtx.measureText(subLine).width, outputWidth * 0.84),
+    height: sublineFontPx * 2,
+    value: subLine,
+  });
+  if (targetCanvas !== previewCanvas || activeInlineEditKind !== "subline") {
+    targetCtx.fillText(subLine, centerX, sublineY, outputWidth * 0.84);
+  }
 
   if (exifLine) {
     targetCtx.font = `${infoFontPx}px ${infoFontFamily}`;
-    targetCtx.fillText(exifLine, centerX, exifY, outputWidth * 0.84);
+    registerPreviewTextRegion(targetCanvas, {
+      kind: "exif",
+      x: centerX - Math.min(targetCtx.measureText(exifLine).width, outputWidth * 0.84) / 2,
+      y: exifY - infoFontPx,
+      width: Math.min(targetCtx.measureText(exifLine).width, outputWidth * 0.84),
+      height: infoFontPx * 2,
+      value: exifLine,
+    });
+    if (targetCanvas !== previewCanvas || activeInlineEditKind !== "exif") {
+      targetCtx.fillText(exifLine, centerX, exifY, outputWidth * 0.84);
+    }
   }
 
   if (roundedCorners) {
@@ -1713,6 +1802,9 @@ function previewRenderKey() {
     brandLogoSizeRange.value,
     brandTextWeightRange.value,
     watermarkOpacityRange.value,
+    manualExifText === null ? "auto-exif" : `manual-exif:${manualExifText}`,
+    manualBrandModelText === null ? "auto-brand" : `manual-brand:${manualBrandModelText}`,
+    activeInlineEditKind || "not-editing",
   ].join("|");
 }
 
@@ -1753,6 +1845,7 @@ function cacheCurrentPreview(key) {
   previewCache.set(currentPhotoId, {
     key,
     canvas: cachedCanvas,
+    textRegions: previewTextRegions.map((region) => ({ ...region })),
     usedAt: Date.now(),
   });
   prunePreviewCache();
@@ -1765,8 +1858,9 @@ function renderPreview() {
   renderPreviewFrame = null;
   const key = previewRenderKey();
   const cached = currentPhotoId ? previewCache.get(currentPhotoId) : null;
-  if (cached?.key === key) {
+  if (cached?.key === key && Array.isArray(cached.textRegions)) {
     cached.usedAt = Date.now();
+    previewTextRegions = (cached.textRegions || []).map((region) => ({ ...region }));
     copyCanvas(cached.canvas, previewCanvas);
   } else {
     renderFrame(previewCanvas, PREVIEW_LONG_SIDE);
@@ -1820,61 +1914,6 @@ watermarkImage.addEventListener("load", () => {
   scheduleRenderPreview();
 });
 
-function renderPreviewCacheForItem(item, key) {
-  const previousState = {
-    file: currentFile,
-    image: currentImage,
-    exif: currentExif,
-    orientation: currentOrientation,
-    buffer: currentFileBuffer,
-  };
-  const cachedCanvas = document.createElement("canvas");
-
-  syncCurrentPhotoState(item);
-  renderFrame(cachedCanvas, PREVIEW_LONG_SIDE);
-  previewCache.set(item.id, {
-    key,
-    canvas: cachedCanvas,
-    usedAt: Date.now() - 1,
-  });
-  prunePreviewCache();
-
-  currentFile = previousState.file;
-  currentImage = previousState.image;
-  currentExif = previousState.exif;
-  currentOrientation = previousState.orientation;
-  currentFileBuffer = previousState.buffer;
-}
-
-function schedulePreviewWarmup() {
-  if (previewWarmupHandle) {
-    return;
-  }
-
-  const schedule = window.requestIdleCallback || ((callback) => window.setTimeout(() => callback({ timeRemaining: () => 8 }), 120));
-
-  previewWarmupHandle = schedule((deadline) => {
-    previewWarmupHandle = null;
-    const key = previewRenderKey();
-    const item = photoItems.find((photo) => {
-      const cached = previewCache.get(photo.id);
-      return photo.id !== currentPhotoId && cached?.key !== key;
-    });
-
-    if (!item || deadline.timeRemaining() < 4) {
-      if (item) {
-        schedulePreviewWarmup();
-      }
-      return;
-    }
-
-    renderPreviewCacheForItem(item, key);
-    if (photoItems.some((photo) => photo.id !== currentPhotoId && previewCache.get(photo.id)?.key !== key)) {
-      schedulePreviewWarmup();
-    }
-  });
-}
-
 function currentPhotoIndex() {
   return photoItems.findIndex((item) => item.id === currentPhotoId);
 }
@@ -1885,6 +1924,14 @@ function syncCurrentPhotoState(item) {
   currentExif = item?.exif || {};
   currentOrientation = item?.orientation || 1;
   currentFileBuffer = item?.buffer || null;
+  photoRotation = Number(item?.rotation || 0);
+}
+
+function preparePhotoRenderState(item) {
+  syncCurrentPhotoState(item);
+  item.layoutOrientation = detectImportedPhotoOrientation(item);
+  photoOrientation = item.layoutOrientation;
+  applyPhotoSettings(item);
 }
 
 function currentDesignSettings() {
@@ -1915,6 +1962,8 @@ function currentDesignSettings() {
     brandLogoSize: brandLogoSizeRange.value,
     brandTextWeight: brandTextWeightRange.value,
     watermarkOpacity: watermarkOpacityRange.value,
+    manualExifText,
+    manualBrandModelText,
   };
 }
 
@@ -1956,6 +2005,12 @@ function applyDesignSettings(settings) {
   brandLogoSizeRange.value = settings.brandLogoSize ?? brandLogoSizeRange.value;
   brandTextWeightRange.value = settings.brandTextWeight ?? brandTextWeightRange.value;
   watermarkOpacityRange.value = settings.watermarkOpacity ?? watermarkOpacityRange.value;
+  manualExifText = Object.prototype.hasOwnProperty.call(settings, "manualExifText")
+    ? settings.manualExifText
+    : null;
+  manualBrandModelText = Object.prototype.hasOwnProperty.call(settings, "manualBrandModelText")
+    ? settings.manualBrandModelText
+    : null;
 
   updateLabels();
   updateExportQualityState();
@@ -1996,7 +2051,9 @@ function syncAllPhotoSettings() {
 
 function handleDesignSettingsChange() {
   saveCurrentPhotoSettings();
-  if (currentPhotoId) {
+  if (applyToAllEnabled) {
+    syncAllPhotoSettings();
+  } else if (currentPhotoId) {
     previewCache.delete(currentPhotoId);
   }
 }
@@ -2082,7 +2139,6 @@ async function setCurrentPhoto(id) {
 
   currentPhotoId = item.id;
   syncCurrentPhotoState(item);
-  photoRotation = 0;
   photoOrientation = item.layoutOrientation || detectOrientation(item.image);
   applyPhotoSettings(item);
   updatePhotoList();
@@ -2098,16 +2154,8 @@ async function setCurrentPhoto(id) {
     return;
   }
 
-  syncCurrentPhotoState(item);
-  item.layoutOrientation = detectImportedPhotoOrientation(item);
-  photoOrientation = item.layoutOrientation;
-  if (!item.settingsInitialized) {
-    applyTemplate(item.settings?.template || currentTemplate);
-    item.settings = currentDesignSettings();
-    item.settingsInitialized = true;
-  } else {
-    applyPhotoSettings(item);
-  }
+  preparePhotoRenderState(item);
+  item.settingsInitialized = true;
   previewCache.delete(item.id);
   updateImageMetaLabel();
   resetPreviewViewport();
@@ -2364,13 +2412,18 @@ async function loadPhoto(file, options = {}) {
       thumbnailPromise: null,
       exif: {},
       orientation: 1,
+      rotation: 0,
       layoutOrientation: null,
       buffer: arrayBufferFromData(file.data),
       desktopPath: file.path || "",
       needsMetadata: true,
       metadataPromise: null,
-      settings: currentDesignSettings(),
-      settingsInitialized: false,
+      settings: {
+        ...currentDesignSettings(),
+        manualExifText: null,
+        manualBrandModelText: null,
+      },
+      settingsInitialized: true,
     };
     nextPhotoId += 1;
     photoItems.push(item);
@@ -2516,7 +2569,7 @@ async function createExportBlob() {
       ensurePhotoImage(currentItem),
       ensurePhotoMetadata(currentItem),
     ]);
-    syncCurrentPhotoState(currentItem);
+    preparePhotoRenderState(currentItem);
   }
 
   if (!currentImage) {
@@ -2623,16 +2676,8 @@ async function createExportRecord(item, usedNames) {
     ensurePhotoImage(item),
     ensurePhotoMetadata(item),
   ]);
-  syncCurrentPhotoState(item);
-  item.layoutOrientation = detectImportedPhotoOrientation(item);
-  photoOrientation = item.layoutOrientation;
-  if (!item.settingsInitialized) {
-    applyTemplate(item.settings?.template || currentTemplate);
-    item.settings = currentDesignSettings();
-    item.settingsInitialized = true;
-  } else {
-    applyPhotoSettings(item);
-  }
+  preparePhotoRenderState(item);
+  item.settingsInitialized = true;
   const blob = await createExportBlob();
   if (!blob) {
     return null;
@@ -2702,7 +2747,11 @@ async function exportAllImages() {
     applyDesignSettings(originalSettings);
     const originalItem = photoItems.find((item) => item.id === originalId);
     currentPhotoId = originalId;
-    syncCurrentPhotoState(originalItem);
+    if (originalItem) {
+      preparePhotoRenderState(originalItem);
+    } else {
+      syncCurrentPhotoState(null);
+    }
     updatePhotoList();
     updateImageMetaLabel();
     resetPreviewViewport();
@@ -2807,6 +2856,146 @@ document.querySelectorAll('input[type="range"]').forEach((range) => {
   });
 });
 
+function applyInlineWatermarkText(kind, value) {
+  if (kind === "headline") {
+    headlineInput.value = value;
+    useExifDate.checked = false;
+  } else if (kind === "subline") {
+    sublineInput.value = value;
+    useExifCamera.checked = false;
+  } else if (kind === "exif") {
+    manualExifText = value;
+  } else if (kind === "galleryTitle") {
+    headlineInput.value = value;
+    useExifDate.checked = false;
+    manualExifText = "";
+  } else if (kind === "brandModel") {
+    manualBrandModelText = value;
+  }
+
+  handleDesignSettingsChange();
+  updateLabels();
+  scheduleRenderPreview();
+}
+
+function removeInlineWatermarkEditor() {
+  inlineWatermarkEditor?.remove();
+  inlineWatermarkEditor = null;
+  if (activeInlineEditKind !== null) {
+    activeInlineEditKind = null;
+    if (currentPhotoId) {
+      previewCache.delete(currentPhotoId);
+    }
+    scheduleRenderPreview();
+  }
+}
+
+function openInlineWatermarkEditor(region) {
+  removeInlineWatermarkEditor();
+  const originalSettings = currentDesignSettings();
+  const canvasRect = previewCanvas.getBoundingClientRect();
+  const frameRect = canvasFrame.getBoundingClientRect();
+  const scaleX = canvasRect.width / previewCanvas.width;
+  const scaleY = canvasRect.height / previewCanvas.height;
+  const editor = document.createElement("input");
+  const canvasEditWidth = Math.max(180, canvasRect.width * 0.9);
+  const width = Math.min(canvasEditWidth, Math.max(180, frameRect.width - 24));
+  const centerX = canvasRect.left - frameRect.left + (region.x + region.width / 2) * scaleX;
+  const centerY = canvasRect.top - frameRect.top + (region.y + region.height / 2) * scaleY;
+  const fontFamily = region.kind === "headline" || region.kind === "galleryTitle"
+    ? getFontFamily(headlineFontSelect.value)
+    : region.kind === "subline"
+      ? getFontFamily(sublineFontSelect.value)
+      : region.kind === "exif"
+        ? getFontFamily(infoFontSelect.value)
+        : fontMap.system;
+
+  editor.type = "text";
+  editor.className = "inline-watermark-editor";
+  editor.value = region.value;
+  editor.setAttribute("aria-label", "编辑水印信息");
+  editor.style.width = `${width}px`;
+  editor.style.left = `${Math.max(12, Math.min(frameRect.width - width - 12, centerX - width / 2))}px`;
+  editor.style.top = `${Math.max(4, Math.min(frameRect.height - 44, centerY - 20))}px`;
+  editor.style.fontSize = `${Math.max(12, Math.min(30, region.height * scaleY * 0.5))}px`;
+  editor.style.fontFamily = fontFamily;
+  editor.style.color = region.kind === "brandModel" ? "#ffffff" : textColor.value;
+  canvasFrame.appendChild(editor);
+  inlineWatermarkEditor = editor;
+  activeInlineEditKind = region.kind;
+  if (currentPhotoId) {
+    previewCache.delete(currentPhotoId);
+  }
+  scheduleRenderPreview();
+
+  editor.addEventListener("input", () => applyInlineWatermarkText(region.kind, editor.value));
+  editor.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      editor.blur();
+    } else if (event.key === "Escape") {
+      event.preventDefault();
+      applyDesignSettings(originalSettings);
+      handleDesignSettingsChange();
+      scheduleRenderPreview();
+      removeInlineWatermarkEditor();
+    }
+  });
+  editor.addEventListener("blur", removeInlineWatermarkEditor, { once: true });
+  editor.focus();
+  editor.select();
+}
+
+function previewTextRegionAt(clientX, clientY) {
+  if (!currentImage || !previewTextRegions.length) {
+    return null;
+  }
+
+  const rect = previewCanvas.getBoundingClientRect();
+  if (rect.width <= 0 || rect.height <= 0) return null;
+  const scaleX = rect.width / previewCanvas.width;
+  const scaleY = rect.height / previewCanvas.height;
+  const x = (clientX - rect.left) / scaleX;
+  const y = (clientY - rect.top) / scaleY;
+  const horizontalPadding = 12 / scaleX;
+  const minimumHalfHeight = 22 / scaleY;
+
+  const matches = previewTextRegions
+    .map((candidate) => {
+      const centerY = candidate.y + candidate.height / 2;
+      const verticalDistance = Math.abs(y - centerY);
+      return {
+        candidate,
+        verticalDistance,
+        halfHeight: Math.max(candidate.height * 0.8, minimumHalfHeight),
+        insideX: x >= candidate.hitX - horizontalPadding
+          && x <= candidate.hitX + candidate.hitWidth + horizontalPadding,
+      };
+    })
+    .filter((entry) => entry.insideX && entry.verticalDistance <= entry.halfHeight)
+    .sort((a, b) => a.verticalDistance - b.verticalDistance);
+
+  return matches[0]?.candidate || null;
+}
+
+previewCanvas.addEventListener("mousemove", (event) => {
+  previewCanvas.classList.toggle("has-editable-text", Boolean(previewTextRegionAt(event.clientX, event.clientY)));
+});
+
+previewCanvas.addEventListener("mouseleave", () => {
+  previewCanvas.classList.remove("has-editable-text");
+});
+
+previewCanvas.addEventListener("dblclick", (event) => {
+  const region = previewTextRegionAt(event.clientX, event.clientY);
+
+  if (region) {
+    event.preventDefault();
+    event.stopPropagation();
+    openInlineWatermarkEditor(region);
+  }
+});
+
 imageInput.addEventListener("change", (event) => handleFiles(event.target.files));
 desktopTitlebar?.addEventListener("click", (event) => {
   const button = event.target.closest("[data-window-action]");
@@ -2845,7 +3034,7 @@ canvasFrame.addEventListener("wheel", (event) => {
   applyPreviewViewport();
 }, { passive: false });
 canvasFrame.addEventListener("pointerdown", (event) => {
-  if (!currentImage || previewScale <= 1) {
+  if (event.target.closest(".inline-watermark-editor") || !currentImage || previewScale <= 1) {
     return;
   }
   previewPointerId = event.pointerId;
@@ -2892,19 +3081,23 @@ exportRounded.addEventListener("change", () => {
   scheduleRenderPreview();
 });
 applyAllButton.addEventListener("click", () => {
-  saveCurrentPhotoSettings();
-  syncAllPhotoSettings();
-  showApplyAllFeedback();
+  applyToAllEnabled = !applyToAllEnabled;
+  applyAllButton.classList.toggle("active", applyToAllEnabled);
+  applyAllButton.setAttribute("aria-pressed", String(applyToAllEnabled));
+  applyAllButton.setAttribute(
+    "aria-label",
+    applyToAllEnabled ? "全部照片参数同步已启用" : "全部照片参数同步已关闭"
+  );
+  applyAllButton.title = applyToAllEnabled
+    ? "全部照片参数同步已启用，点击关闭"
+    : "全部照片参数同步已关闭，点击启用";
+
+  if (applyToAllEnabled) {
+    saveCurrentPhotoSettings();
+    syncAllPhotoSettings();
+    scheduleRenderPreview();
+  }
 });
-function showApplyAllFeedback() {
-  applyAllButton.classList.add("active");
-  applyAllButton.setAttribute("aria-label", "已将当前设置应用到全部照片");
-  window.clearTimeout(applyAllButton.feedbackTimer);
-  applyAllButton.feedbackTimer = window.setTimeout(() => {
-    applyAllButton.classList.remove("active");
-    applyAllButton.setAttribute("aria-label", "将当前设置应用到全部照片");
-  }, 600);
-}
 clearAllPhotosButton.addEventListener("click", clearAllPhotos);
 clearPhotoButton.addEventListener("click", clearPhoto);
 exportButton.addEventListener("click", exportImage);
@@ -2959,6 +3152,13 @@ dropZone.addEventListener("drop", (event) => {
 rotateButton.addEventListener("click", () => {
   if (!currentImage) return;
   photoRotation = (photoRotation + 90) % 360;
+  const item = photoItems.find((photo) => photo.id === currentPhotoId);
+  if (item) {
+    item.rotation = photoRotation;
+    item.layoutOrientation = detectImportedPhotoOrientation(item);
+    photoOrientation = item.layoutOrientation;
+    previewCache.delete(item.id);
+  }
   scheduleRenderPreview();
 });
 
@@ -2982,6 +3182,7 @@ if (window.requestIdleCallback) {
   setTimeout(() => renderPreview(), 0);
 }
 window.addEventListener("resize", () => {
+  removeInlineWatermarkEditor();
   applyPreviewViewport();
   syncAllRangeFills();
 });

@@ -36,7 +36,7 @@ function createWindow() {
     minHeight: 760,
     autoHideMenuBar: true,
     frame: false,
-    show: false,
+    show: true,
     backgroundColor: "#f8f5ef",
     icon: path.join(
       __dirname,
@@ -47,12 +47,9 @@ function createWindow() {
       preload: path.join(__dirname, "preload.js"),
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: false
+      sandbox: false,
+      spellcheck: false
     }
-  });
-
-  win.once("ready-to-show", () => {
-    win.show();
   });
 
   win.loadFile("index.html");

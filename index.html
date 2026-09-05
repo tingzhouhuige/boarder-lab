@@ -256,7 +256,7 @@
         <div class="panel-header">
           <span class="preview-heading">实时预览</span>
           <div class="preview-toolbar">
-            <button id="applyAllButton" class="preview-tool-button preview-icon-button" type="button" aria-label="将当前设置应用到全部照片" title="将当前设置应用到全部照片">
+            <button id="applyAllButton" class="preview-tool-button preview-icon-button" type="button" aria-label="全部照片参数同步已关闭" aria-pressed="false" title="全部照片参数同步已关闭，点击启用">
               <span class="sync-icon" aria-hidden="true"></span>
             </button>
             <button id="rotateButton" class="preview-tool-button preview-icon-button" type="button" aria-label="旋转照片" title="旋转照片 90°">
@@ -290,7 +290,7 @@
         <div class="preview-workspace">
           <div id="canvasStage" class="canvas-stage">
             <div id="canvasFrame" class="canvas-frame">
-              <canvas id="previewCanvas" width="1200" height="900"></canvas>
+              <canvas id="previewCanvas" width="1200" height="900" aria-label="照片与水印预览，双击文字可直接编辑" title="双击水印文字可直接编辑"></canvas>
               <button id="emptyState" class="empty-state" type="button">
                 <span>拖入照片或点击左侧导入</span>
                 <small>支持格式：JPG / JPEG / PNG / WebP</small>
