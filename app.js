@@ -26,6 +26,8 @@ const cornerRadiusRange = document.getElementById("cornerRadiusRange");
 const cornerRadiusValue = document.getElementById("cornerRadiusValue");
 const useExifDate = document.getElementById("useExifDate");
 const useExifCamera = document.getElementById("useExifCamera");
+const useExifDateRow = useExifDate.closest(".toggle-row");
+const useExifCameraRow = useExifCamera.closest(".toggle-row");
 const exportRounded = document.getElementById("exportRounded");
 const applyAllButton = document.getElementById("applyAllButton");
 const exportButton = document.getElementById("exportButton");
@@ -77,6 +79,18 @@ const confirmDialogMessage = document.getElementById("confirmDialogMessage");
 const confirmCancelButton = document.getElementById("confirmCancelButton");
 const confirmOkButton = document.getElementById("confirmOkButton");
 const paperColorSection = paperColor.closest(".panel-section");
+const bottomRangeLabel = document.querySelector("label[for='bottomRange']");
+const headlineInputLabel = document.querySelector("label[for='headlineInput']");
+const sublineInputLabel = document.querySelector("label[for='sublineInput']");
+const headlineSizeLabel = document.querySelector("label[for='headlineSizeRange']");
+const headlineOffsetLabel = document.querySelector("label[for='headlineOffsetRange']");
+const headlineFontLabel = document.querySelector("label[for='headlineFontSelect']");
+const sublineSizeLabel = document.querySelector("label[for='sublineSizeRange']");
+const sublineOffsetLabel = document.querySelector("label[for='sublineOffsetRange']");
+const sublineFontLabel = document.querySelector("label[for='sublineFontSelect']");
+const infoSizeLabel = document.querySelector("label[for='infoSizeRange']");
+const infoOffsetLabel = document.querySelector("label[for='infoOffsetRange']");
+const infoFontLabel = document.querySelector("label[for='infoFontSelect']");
 
 const ctx = previewCanvas.getContext("2d");
 
@@ -104,6 +118,10 @@ let previewTextRegions = [];
 let inlineWatermarkEditor = null;
 let activeInlineEditKind = null;
 let applyToAllEnabled = false;
+const editorialSettingsByOrientation = {
+  landscape: null,
+  portrait: null,
+};
 
 const PREVIEW_LONG_SIDE = 2400;
 const MAX_PREVIEW_CACHE_ITEMS = 5;
@@ -133,6 +151,10 @@ nikonLogoImage.src = "assets/nikon-logo.svg";
 const NIKON_LOGO_RATIO = 400 / 130;
 
 const templates = {
+  plainWhite: {
+    landscape: { border: 60, bottom: 0, headlineSize: 0, sublineSize: 0, infoSize: 0, headlineOffset: 50, sublineOffset: 50, infoOffset: 50, headlineFont: "times", sublineFont: "times", infoFont: "times", cornerRadius: 0, headline: "", subline: "", paperColor: "#ffffff", textColor: "#000000" },
+    portrait: { border: 60, bottom: 0, headlineSize: 0, sublineSize: 0, infoSize: 0, headlineOffset: 50, sublineOffset: 50, infoOffset: 50, headlineFont: "times", sublineFont: "times", infoFont: "times", cornerRadius: 0, headline: "", subline: "", paperColor: "#ffffff", textColor: "#000000" },
+  },
   classic: {
     landscape: {
       border: 30,
@@ -203,6 +225,44 @@ const templates = {
       subline: "NIKON Zfc",
       paperColor: "#34362f",
       textColor: "#f2ead8",
+    },
+  },
+  editorialSide: {
+    landscape: {
+      border: 55,
+      bottom: 50,
+      headlineFont: "times",
+      sublineFont: "times",
+      infoFont: "times",
+      headlineSize: 46,
+      sublineSize: 37,
+      infoSize: 60,
+      headlineOffset: 49,
+      sublineOffset: 52,
+      infoOffset: 56,
+      cornerRadius: 0,
+      headline: "",
+      subline: "",
+      paperColor: "#ffffff",
+      textColor: "#5e5a58",
+    },
+    portrait: {
+      border: 70,
+      bottom: 58,
+      headlineFont: "times",
+      sublineFont: "times",
+      infoFont: "times",
+      headlineSize: 60,
+      sublineSize: 52,
+      infoSize: 70,
+      headlineOffset: 45,
+      sublineOffset: 55,
+      infoOffset: 65,
+      cornerRadius: 0,
+      headline: "",
+      subline: "",
+      paperColor: "#ffffff",
+      textColor: "#5e5a58",
     },
   },
   watermark: {
@@ -320,9 +380,28 @@ function updateWatermarkControlLabels(name) {
   brandTextWeightRow.classList.toggle("hidden", !isBrandWatermarkTemplate);
 }
 
+function updateTemplateControlLabels(name) {
+  const isEditorialTemplate = name === "editorialSide";
+  bottomRangeLabel.textContent = name === "plainWhite" ? "下方额外留白" : isEditorialTemplate ? "文字栏宽度" : "底部说明区";
+  headlineInputLabel.textContent = isEditorialTemplate ? "地点" : "主标题";
+  sublineInputLabel.textContent = isEditorialTemplate ? "镜头信息" : "副标题";
+  headlineInput.placeholder = isEditorialTemplate ? "例如：地点" : "例如：呼兰站人行桥，哈尔滨市呼兰区";
+  sublineInput.placeholder = isEditorialTemplate ? "例如：中一65" : "例如：NIKON Zfc";
+  headlineSizeLabel.textContent = isEditorialTemplate ? "相机型号大小" : "主标题大小";
+  headlineOffsetLabel.textContent = isEditorialTemplate ? "相机型号位置" : "主标题位置";
+  headlineFontLabel.textContent = isEditorialTemplate ? "相机型号字体" : "主标题字体";
+  sublineSizeLabel.textContent = isEditorialTemplate ? "镜头文字大小" : "副标题大小";
+  sublineOffsetLabel.textContent = isEditorialTemplate ? "镜头文字位置" : "副标题位置";
+  sublineFontLabel.textContent = isEditorialTemplate ? "镜头文字字体" : "副标题字体";
+  infoSizeLabel.textContent = isEditorialTemplate ? "地点大小" : "信息大小";
+  infoOffsetLabel.textContent = isEditorialTemplate ? "地点位置" : "信息位置";
+  infoFontLabel.textContent = isEditorialTemplate ? "地点字体" : "信息字体";
+}
+
 function updateTemplateControlVisibility(name) {
   const isYiyinTemplate = name === "galleryDark";
-  const isClassicTemplate = name === "classic";
+  const isEditorialTemplate = name === "editorialSide";
+  const isClassicTemplate = name === "classic" || name === "editorialSide";
   const isOverlayWatermarkTemplate = isOverlayTemplate(name);
 
   document.querySelectorAll(".control-panel .template-hidden").forEach((element) => {
@@ -340,9 +419,30 @@ function updateTemplateControlVisibility(name) {
   infoControlsRow.classList.toggle("template-hidden", isYiyinTemplate || isOverlayWatermarkTemplate);
   paperColorSection.classList.toggle("template-hidden", isYiyinTemplate || isOverlayWatermarkTemplate);
   photoStrokeRow.classList.toggle("template-hidden", !isClassicTemplate);
+  useExifDateRow.classList.toggle("template-hidden", isEditorialTemplate);
+  useExifCameraRow.classList.toggle("template-hidden", isEditorialTemplate);
   watermarkControls.classList.toggle("hidden", !isOverlayWatermarkTemplate);
   watermarkSelectRow.classList.toggle("hidden", name !== "watermark");
+  updateTemplateControlLabels(name);
   updateWatermarkControlLabels(name);
+  if (name === "plainWhite") {
+    [paperColor, textColor, headlineInput, sublineInput].forEach((control) => {
+      control.closest(".panel-section").classList.add("template-hidden");
+    });
+    [headlineSizeRange, sublineSizeRange, infoSizeRange].forEach((control) => {
+      control.closest(".panel-row-3").classList.add("template-hidden");
+    });
+    useExifDateRow.classList.add("template-hidden");
+    useExifCameraRow.classList.add("template-hidden");
+  }
+}
+
+function syncCustomSelectDisplay(select) {
+  const label = select?.closest(".custom-select")?.querySelector(".custom-select-label");
+  const selectedOption = select?.options[select.selectedIndex];
+  if (label && selectedOption) {
+    label.textContent = selectedOption.textContent;
+  }
 }
 
 function enhanceSelect(select) {
@@ -467,6 +567,9 @@ function applyTemplate(name) {
   headlineFontSelect.value = params.headlineFont;
   sublineFontSelect.value = params.sublineFont;
   infoFontSelect.value = params.infoFont;
+  syncCustomSelectDisplay(headlineFontSelect);
+  syncCustomSelectDisplay(sublineFontSelect);
+  syncCustomSelectDisplay(infoFontSelect);
   headlineSizeRange.value = String(params.headlineSize);
   sublineSizeRange.value = String(params.sublineSize);
   infoSizeRange.value = String(params.infoSize);
@@ -474,7 +577,13 @@ function applyTemplate(name) {
   sublineOffsetRange.value = String(params.sublineOffset);
   infoOffsetRange.value = String(params.infoOffset);
   cornerRadiusRange.value = String(params.cornerRadius);
+  if (params.headline !== undefined) {
+    headlineInput.value = params.headline;
+  }
   sublineInput.value = params.subline;
+  if (name === "editorialSide") {
+    manualBrandModelText = null;
+  }
   if (params.paperColor) {
     paperColor.value = params.paperColor;
   }
@@ -803,6 +912,15 @@ function parseExif(buffer) {
       const baseIfd = parseIfd(view, tiffStart + ifdOffset, littleEndian, tiffStart);
       const exifIfdOffset = baseIfd[0x8769];
       const exifIfd = exifIfdOffset ? parseIfd(view, tiffStart + exifIfdOffset, littleEndian, tiffStart) : {};
+      const gpsIfdOffset = baseIfd[0x8825];
+      const gpsIfd = gpsIfdOffset ? parseIfd(view, tiffStart + gpsIfdOffset, littleEndian, tiffStart) : {};
+      const gpsToDecimal = (parts, reference) => {
+        if (!Array.isArray(parts) || parts.length < 3) return null;
+        const decimal = Number(parts[0]) + Number(parts[1]) / 60 + Number(parts[2]) / 3600;
+        return /[SW]/i.test(String(reference || "")) ? -decimal : decimal;
+      };
+      const gpsLatitude = gpsToDecimal(gpsIfd[0x0002], gpsIfd[0x0001]);
+      const gpsLongitude = gpsToDecimal(gpsIfd[0x0004], gpsIfd[0x0003]);
 
       exifResult = {
         make: baseIfd[0x010f] || "",
@@ -819,6 +937,9 @@ function parseExif(buffer) {
         focalLengthIn35mm: exifIfd[0xa405] || 0,
         pixelXDimension: exifIfd[0xa002] || 0,
         pixelYDimension: exifIfd[0xa003] || 0,
+        gpsLocation: Number.isFinite(gpsLatitude) && Number.isFinite(gpsLongitude)
+          ? `${gpsLatitude.toFixed(5)}, ${gpsLongitude.toFixed(5)}`
+          : "",
       };
     } else if (length > 10) {
       const ascii = String.fromCharCode(
@@ -1601,12 +1722,117 @@ function renderNikonFrame(targetCanvas, maxLongSide, roundedCorners) {
   });
 }
 
+function editorialCameraText() {
+  if (manualBrandModelText !== null) {
+    return manualBrandModelText;
+  }
+  return cameraText().trim() || "FUJIFILM GFX50R";
+}
+
+function editorialLensText() {
+  const manual = sublineInput.value.trim();
+  if (manual) {
+    return manual;
+  }
+  return String(currentExif.lensModel || "").trim();
+}
+
+function editorialLocationText() {
+  return headlineInput.value.trim() || String(currentExif.gpsLocation || "").trim();
+}
+
+function renderEditorialSideFrame(targetCanvas, maxLongSide, roundedCorners) {
+  const targetCtx = targetCanvas.getContext("2d");
+  const size = scaledImageSizeForMaxLongSide(maxLongSide);
+  const margin = Math.max(12, Math.round(size.width * getBorderPaddingPercent() / 100));
+  const panelRatio = 0.25 + Number(bottomRange.value) * 0.004;
+  const panelWidth = Math.round(size.width * Math.min(0.72, Math.max(0.28, panelRatio)));
+  const outputWidth = size.width + panelWidth + margin * 2;
+  const outputHeight = size.height + margin * 2;
+  const photoBox = { x: margin, y: margin, width: size.width, height: size.height };
+  const rightAreaWidth = panelWidth + margin;
+  const panelCenterX = margin + size.width + rightAreaWidth / 2;
+  const cameraLine = editorialCameraText();
+  const lensLine = editorialLensText();
+  const locationLine = editorialLocationText();
+  const baseFontPx = Math.max(24, Math.round(outputWidth * 0.028));
+  const cameraScale = Number(headlineSizeRange.value) / 100;
+  const lensScale = Number(sublineSizeRange.value) / 100;
+  const locationScale = Number(infoSizeRange.value) / 100;
+  const cameraFontPx = cameraScale > 0 ? Math.max(1, Math.round(baseFontPx * cameraScale)) : 0;
+  const lensFontPx = lensScale > 0 ? Math.max(1, Math.round(baseFontPx * lensScale)) : 0;
+  const locationFontPx = locationScale > 0 ? Math.max(1, Math.round(baseFontPx * locationScale)) : 0;
+  // Keep the portrait adjustment scale fixed and independent of template defaults.
+  // Each slider point moves by 0.25% of the output height; 50 stays at center.
+  const positionRatio = (value) => photoOrientation === "portrait"
+    ? 0.5 + (Number(value) - 50) * 0.0025
+    : Number(value) / 100;
+  const cameraY = outputHeight * positionRatio(headlineOffsetRange.value);
+  const lensY = outputHeight * positionRatio(sublineOffsetRange.value);
+  const locationY = outputHeight * positionRatio(infoOffsetRange.value);
+  const maxTextWidth = rightAreaWidth * 0.86;
+
+  targetCanvas.width = outputWidth;
+  targetCanvas.height = outputHeight;
+
+  if (roundedCorners) {
+    targetCtx.save();
+    roundedRectPath(targetCtx, 0, 0, outputWidth, outputHeight, getCornerRadiusPx(outputWidth, outputHeight));
+    targetCtx.clip();
+  }
+
+  targetCtx.fillStyle = paperColor.value;
+  targetCtx.fillRect(0, 0, outputWidth, outputHeight);
+  drawImageWithOrientation(targetCtx, currentImage, photoBox, currentOrientation);
+
+  if (photoStroke.checked) {
+    const strokeW = Math.max(1, Math.round(outputWidth * 0.0012));
+    targetCtx.strokeStyle = "#000000";
+    targetCtx.lineWidth = strokeW;
+    targetCtx.strokeRect(photoBox.x - strokeW / 2, photoBox.y - strokeW / 2, photoBox.width + strokeW, photoBox.height + strokeW);
+  }
+
+  targetCtx.fillStyle = textColor.value;
+  targetCtx.textAlign = "center";
+  targetCtx.textBaseline = "middle";
+
+  const drawLine = (text, kind, y, fontPx, fontFamily) => {
+    if (!text || fontPx <= 0) {
+      return;
+    }
+    targetCtx.font = `${fontPx}px ${fontFamily}`;
+    const width = Math.min(targetCtx.measureText(text).width, maxTextWidth);
+    registerPreviewTextRegion(targetCanvas, {
+      kind,
+      x: panelCenterX - width / 2,
+      y: y - fontPx,
+      width,
+      height: fontPx * 2,
+      value: text,
+      preferredHitWidth: rightAreaWidth * 0.9,
+    });
+    if (targetCanvas !== previewCanvas || activeInlineEditKind !== kind) {
+      targetCtx.fillText(text, panelCenterX, y, maxTextWidth);
+    }
+  };
+
+  drawLine(cameraLine, "brandModel", cameraY, cameraFontPx, getFontFamily(headlineFontSelect.value));
+  drawLine(lensLine, "subline", lensY, lensFontPx, getFontFamily(sublineFontSelect.value));
+  drawLine(locationLine, "editorialLocation", locationY, locationFontPx, getFontFamily(infoFontSelect.value));
+
+  if (roundedCorners) {
+    targetCtx.restore();
+  }
+}
+
 function registerPreviewTextRegion(targetCanvas, region) {
   if (targetCanvas !== previewCanvas || !region.value) {
     return;
   }
   const centerX = region.x + region.width / 2;
-  const hitWidth = Math.max(region.width, targetCanvas.width * 0.62);
+  const hitWidth = region.preferredHitWidth
+    ? Math.max(region.width, region.preferredHitWidth)
+    : Math.max(region.width, targetCanvas.width * 0.62);
   const hitX = Math.max(0, Math.min(targetCanvas.width - hitWidth, centerX - hitWidth / 2));
   previewTextRegions.push({ ...region, hitX, hitWidth });
 }
@@ -1628,8 +1854,33 @@ function renderFrame(targetCanvas, maxLongSide = 2400, options = {}) {
     return;
   }
 
+  if (currentTemplate === "plainWhite") {
+    const size = scaledImageSizeForMaxLongSide(maxLongSide);
+    const border = Math.round(Math.min(size.width, size.height) * Number(borderRange.value) / 600);
+    const bottomExtra = Math.round(Math.min(size.width, size.height) * Number(bottomRange.value) / 600);
+    targetCanvas.width = size.width + border * 2;
+    targetCanvas.height = size.height + border * 2 + bottomExtra;
+    targetCtx.save();
+    if (roundedCorners) {
+      roundedRectPath(targetCtx, 0, 0, targetCanvas.width, targetCanvas.height, getCornerRadiusPx(targetCanvas.width, targetCanvas.height));
+      targetCtx.clip();
+    }
+    targetCtx.fillStyle = "#ffffff";
+    targetCtx.fillRect(0, 0, targetCanvas.width, targetCanvas.height);
+    drawImageWithOrientation(targetCtx, currentImage, { x: border, y: border, width: size.width, height: size.height }, currentOrientation);
+    targetCtx.restore();
+    emptyState.classList.add("hidden");
+    return;
+  }
+
   if (currentTemplate === "galleryDark") {
     renderGalleryDarkFrame(targetCanvas, maxLongSide, roundedCorners);
+    emptyState.classList.add("hidden");
+    return;
+  }
+
+  if (currentTemplate === "editorialSide") {
+    renderEditorialSideFrame(targetCanvas, maxLongSide, roundedCorners);
     emptyState.classList.add("hidden");
     return;
   }
@@ -1931,6 +2182,10 @@ function preparePhotoRenderState(item) {
   syncCurrentPhotoState(item);
   item.layoutOrientation = detectImportedPhotoOrientation(item);
   photoOrientation = item.layoutOrientation;
+  if (!item.settingsInitialized && item.settings?.template === "editorialSide") {
+    item.settings = editorialSettingsForOrientation(item.layoutOrientation);
+    item.settingsInitialized = true;
+  }
   applyPhotoSettings(item);
 }
 
@@ -1967,6 +2222,51 @@ function currentDesignSettings() {
   };
 }
 
+function templateSettingsForOrientation(templateName, orientation, baseSettings = currentDesignSettings()) {
+  const params = templates[templateName]?.[orientation] || templates[templateName]?.landscape;
+  if (!params) {
+    return { ...baseSettings, template: templateName };
+  }
+  return {
+    ...baseSettings,
+    template: templateName,
+    border: String(params.border ?? baseSettings.border),
+    bottom: String(params.bottom ?? baseSettings.bottom),
+    paperColor: params.paperColor ?? baseSettings.paperColor,
+    textColor: params.textColor ?? baseSettings.textColor,
+    headline: params.headline ?? baseSettings.headline,
+    subline: params.subline ?? baseSettings.subline,
+    headlineFont: params.headlineFont ?? baseSettings.headlineFont,
+    sublineFont: params.sublineFont ?? baseSettings.sublineFont,
+    infoFont: params.infoFont ?? baseSettings.infoFont,
+    headlineSize: String(params.headlineSize ?? baseSettings.headlineSize),
+    sublineSize: String(params.sublineSize ?? baseSettings.sublineSize),
+    infoSize: String(params.infoSize ?? baseSettings.infoSize),
+    headlineOffset: String(params.headlineOffset ?? baseSettings.headlineOffset),
+    sublineOffset: String(params.sublineOffset ?? baseSettings.sublineOffset),
+    infoOffset: String(params.infoOffset ?? baseSettings.infoOffset),
+    cornerRadius: String(params.cornerRadius ?? baseSettings.cornerRadius),
+    manualExifText: null,
+    manualBrandModelText: null,
+  };
+}
+
+function editorialSettingsForOrientation(orientation) {
+  const normalizedOrientation = orientation === "portrait" ? "portrait" : "landscape";
+  const remembered = editorialSettingsByOrientation[normalizedOrientation];
+  return remembered
+    ? { ...remembered }
+    : templateSettingsForOrientation("editorialSide", normalizedOrientation);
+}
+
+function rememberEditorialSettings() {
+  if (currentTemplate !== "editorialSide") {
+    return;
+  }
+  const normalizedOrientation = photoOrientation === "portrait" ? "portrait" : "landscape";
+  editorialSettingsByOrientation[normalizedOrientation] = { ...currentDesignSettings() };
+}
+
 function applyDesignSettings(settings) {
   if (!settings) {
     return;
@@ -1989,6 +2289,9 @@ function applyDesignSettings(settings) {
   headlineFontSelect.value = settings.headlineFont ?? headlineFontSelect.value;
   sublineFontSelect.value = settings.sublineFont ?? sublineFontSelect.value;
   infoFontSelect.value = settings.infoFont ?? infoFontSelect.value;
+  syncCustomSelectDisplay(headlineFontSelect);
+  syncCustomSelectDisplay(sublineFontSelect);
+  syncCustomSelectDisplay(infoFontSelect);
   headlineSizeRange.value = settings.headlineSize ?? headlineSizeRange.value;
   sublineSizeRange.value = settings.sublineSize ?? sublineSizeRange.value;
   infoSizeRange.value = settings.infoSize ?? infoSizeRange.value;
@@ -2029,6 +2332,7 @@ function saveCurrentPhotoSettings() {
   if (item) {
     item.settings = currentDesignSettings();
     item.settingsInitialized = true;
+    rememberEditorialSettings();
   }
 }
 
@@ -2043,14 +2347,41 @@ function applyPhotoSettings(item) {
 function syncAllPhotoSettings() {
   const settings = currentDesignSettings();
   photoItems.forEach((item) => {
-    item.settings = { ...settings };
-    item.settingsInitialized = true;
+    if (settings.template === "editorialSide") {
+      const orientation = item.layoutOrientation || (item.image ? detectImportedPhotoOrientation(item) : null);
+      if (!orientation) {
+        item.settings = { ...settings };
+        item.settingsInitialized = false;
+        return;
+      }
+      const orientationSettings = editorialSettingsForOrientation(orientation);
+      const layoutKeys = [
+        "border",
+        "bottom",
+        "headlineSize",
+        "sublineSize",
+        "infoSize",
+        "headlineOffset",
+        "sublineOffset",
+        "infoOffset",
+      ];
+      const mergedSettings = { ...settings };
+      layoutKeys.forEach((key) => {
+        mergedSettings[key] = orientationSettings[key];
+      });
+      item.settings = mergedSettings;
+      item.settingsInitialized = true;
+    } else {
+      item.settings = { ...settings };
+      item.settingsInitialized = true;
+    }
   });
   previewCache.clear();
 }
 
 function handleDesignSettingsChange() {
   saveCurrentPhotoSettings();
+  rememberEditorialSettings();
   if (applyToAllEnabled) {
     syncAllPhotoSettings();
   } else if (currentPhotoId) {
@@ -2423,7 +2754,7 @@ async function loadPhoto(file, options = {}) {
         manualExifText: null,
         manualBrandModelText: null,
       },
-      settingsInitialized: true,
+      settingsInitialized: currentTemplate !== "editorialSide",
     };
     nextPhotoId += 1;
     photoItems.push(item);
@@ -2869,6 +3200,9 @@ function applyInlineWatermarkText(kind, value) {
     headlineInput.value = value;
     useExifDate.checked = false;
     manualExifText = "";
+  } else if (kind === "editorialLocation") {
+    headlineInput.value = value;
+    useExifDate.checked = false;
   } else if (kind === "brandModel") {
     manualBrandModelText = value;
   }
@@ -2898,7 +3232,10 @@ function openInlineWatermarkEditor(region) {
   const scaleX = canvasRect.width / previewCanvas.width;
   const scaleY = canvasRect.height / previewCanvas.height;
   const editor = document.createElement("input");
-  const canvasEditWidth = Math.max(180, canvasRect.width * 0.9);
+  const editorialEditWidth = Math.max(220, Number(region.preferredHitWidth || region.width) * scaleX);
+  const canvasEditWidth = currentTemplate === "editorialSide"
+    ? editorialEditWidth
+    : Math.max(180, canvasRect.width * 0.9);
   const width = Math.min(canvasEditWidth, Math.max(180, frameRect.width - 24));
   const centerX = canvasRect.left - frameRect.left + (region.x + region.width / 2) * scaleX;
   const centerY = canvasRect.top - frameRect.top + (region.y + region.height / 2) * scaleY;
@@ -2906,9 +3243,11 @@ function openInlineWatermarkEditor(region) {
     ? getFontFamily(headlineFontSelect.value)
     : region.kind === "subline"
       ? getFontFamily(sublineFontSelect.value)
-      : region.kind === "exif"
+      : region.kind === "exif" || region.kind === "editorialLocation"
         ? getFontFamily(infoFontSelect.value)
-        : fontMap.system;
+        : currentTemplate === "editorialSide"
+          ? getFontFamily(headlineFontSelect.value)
+          : fontMap.system;
 
   editor.type = "text";
   editor.className = "inline-watermark-editor";
@@ -2919,7 +3258,9 @@ function openInlineWatermarkEditor(region) {
   editor.style.top = `${Math.max(4, Math.min(frameRect.height - 44, centerY - 20))}px`;
   editor.style.fontSize = `${Math.max(12, Math.min(30, region.height * scaleY * 0.5))}px`;
   editor.style.fontFamily = fontFamily;
-  editor.style.color = region.kind === "brandModel" ? "#ffffff" : textColor.value;
+  editor.style.color = region.kind === "brandModel" && currentTemplate !== "editorialSide"
+    ? "#ffffff"
+    : textColor.value;
   canvasFrame.appendChild(editor);
   inlineWatermarkEditor = editor;
   activeInlineEditKind = region.kind;
@@ -2986,7 +3327,10 @@ previewCanvas.addEventListener("mouseleave", () => {
   previewCanvas.classList.remove("has-editable-text");
 });
 
-previewCanvas.addEventListener("dblclick", (event) => {
+canvasFrame.addEventListener("dblclick", (event) => {
+  if (event.target.closest(".inline-watermark-editor")) {
+    return;
+  }
   const region = previewTextRegionAt(event.clientX, event.clientY);
 
   if (region) {
@@ -3151,12 +3495,18 @@ dropZone.addEventListener("drop", (event) => {
 
 rotateButton.addEventListener("click", () => {
   if (!currentImage) return;
+  const previousOrientation = photoOrientation;
   photoRotation = (photoRotation + 90) % 360;
   const item = photoItems.find((photo) => photo.id === currentPhotoId);
   if (item) {
     item.rotation = photoRotation;
     item.layoutOrientation = detectImportedPhotoOrientation(item);
     photoOrientation = item.layoutOrientation;
+    if (currentTemplate === "editorialSide" && photoOrientation !== previousOrientation) {
+      item.settings = editorialSettingsForOrientation(photoOrientation);
+      item.settingsInitialized = true;
+      applyPhotoSettings(item);
+    }
     previewCache.delete(item.id);
   }
   scheduleRenderPreview();
