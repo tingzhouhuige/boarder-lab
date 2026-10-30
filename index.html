@@ -58,6 +58,14 @@
         <input id="bottomRange" type="range" min="0" max="100" value="30" step="1">
       </section>
 
+      <section class="panel-section panel-span-2">
+        <div class="field-label-row">
+          <label for="paperTextureRange">纸纹强度（含照片）</label>
+          <span id="paperTextureValue">0%</span>
+        </div>
+        <input id="paperTextureRange" type="range" min="0" max="100" value="0" step="1" title="0 为关闭；建议从 35% 开始，纸纹覆盖照片和白边">
+      </section>
+
       <section class="panel-section">
         <label class="field-label" for="paperColor">边框颜色</label>
         <input id="paperColor" type="color" value="#ffffff">
@@ -322,6 +330,10 @@
               <span class="template-thumb template-plain-white"></span>
               <strong>纯白框</strong>
             </button>
+            <button class="template-card" data-template="paperPostcard" type="button">
+              <span class="template-thumb template-plain-white template-paper-postcard"><span class="paper-thumb-grain"></span></span>
+              <strong>纸纹明信片</strong>
+            </button>
             <button class="template-card" data-template="galleryDark" type="button">
               <span class="template-thumb template-dark">
                 <span class="template-dark-stage"></span>
@@ -388,6 +400,7 @@
     </div>
   </div>
 
+  <script src="paper-surface.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

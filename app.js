@@ -1,6 +1,8 @@
 const imageInput = document.getElementById("imageInput");
 const borderRange = document.getElementById("borderRange");
 const bottomRange = document.getElementById("bottomRange");
+const paperTextureRange = document.getElementById("paperTextureRange");
+const paperTextureValue = document.getElementById("paperTextureValue");
 const borderValue = document.getElementById("borderValue");
 const bottomValue = document.getElementById("bottomValue");
 const paperColor = document.getElementById("paperColor");
@@ -344,6 +346,11 @@ function getTemplateParams(templateName) {
   return template[photoOrientation] || template.landscape;
 }
 
+templates.paperPostcard = {
+  landscape: { ...templates.plainWhite.landscape, border: 45, paperTexture: 45 },
+  portrait: { ...templates.plainWhite.portrait, border: 45, paperTexture: 45 },
+};
+
 function detectOrientation(image) {
   if (!image) return "landscape";
   const w = photoRotation % 180 === 0 ? image.naturalWidth : image.naturalHeight;
@@ -382,7 +389,7 @@ function updateWatermarkControlLabels(name) {
 
 function updateTemplateControlLabels(name) {
   const isEditorialTemplate = name === "editorialSide";
-  bottomRangeLabel.textContent = name === "plainWhite" ? "下方额外留白" : isEditorialTemplate ? "文字栏宽度" : "底部说明区";
+  bottomRangeLabel.textContent = ["plainWhite", "paperPostcard"].includes(name) ? "下方额外留白" : isEditorialTemplate ? "文字栏宽度" : "底部说明区";
   headlineInputLabel.textContent = isEditorialTemplate ? "地点" : "主标题";
   sublineInputLabel.textContent = isEditorialTemplate ? "镜头信息" : "副标题";
   headlineInput.placeholder = isEditorialTemplate ? "例如：地点" : "例如：呼兰站人行桥，哈尔滨市呼兰区";
@@ -425,7 +432,8 @@ function updateTemplateControlVisibility(name) {
   watermarkSelectRow.classList.toggle("hidden", name !== "watermark");
   updateTemplateControlLabels(name);
   updateWatermarkControlLabels(name);
-  if (name === "plainWhite") {
+  paperTextureRange.closest(".panel-section").classList.toggle("template-hidden", name !== "paperPostcard");
+  if (name === "plainWhite" || name === "paperPostcard") {
     [paperColor, textColor, headlineInput, sublineInput].forEach((control) => {
       control.closest(".panel-section").classList.add("template-hidden");
     });
@@ -532,7 +540,10 @@ function enhanceSelect(select) {
   sync();
 }
 
+let designSettingsModified = false;
+
 function applyTemplate(name) {
+  designSettingsModified = false;
   const template = templates[name];
   if (!template) {
     return;
@@ -563,6 +574,7 @@ function applyTemplate(name) {
   }
 
   borderRange.value = String(params.border);
+  paperTextureRange.value = String(params.paperTexture ?? 0);
   bottomRange.value = String(params.bottom);
   headlineFontSelect.value = params.headlineFont;
   sublineFontSelect.value = params.sublineFont;
@@ -597,6 +609,7 @@ function applyTemplate(name) {
 }
 
 function updateLabels() {
+  paperTextureValue.textContent = `${paperTextureRange.value}%`;
   borderValue.textContent = `${borderRange.value}%`;
   bottomValue.textContent = `${bottomRange.value}%`;
   headlineSizeValue.textContent = `${headlineSizeRange.value}%`;
@@ -644,6 +657,7 @@ function syncRangeFill(range) {
 
 function syncAllRangeFills() {
   [
+    paperTextureRange,
     borderRange,
     bottomRange,
     exportQualityRange,
@@ -664,6 +678,7 @@ function syncAllRangeFills() {
 }
 
 function resetControls() {
+  paperTextureRange.value = "0";
   paperColor.value = "#ffffff";
   textColor.value = "#4b433d";
   headlineInput.value = "";
@@ -1837,7 +1852,26 @@ function registerPreviewTextRegion(targetCanvas, region) {
   previewTextRegions.push({ ...region, hitX, hitWidth });
 }
 
+function applyPaperTexture(targetCanvas) {
+  if (!currentImage || currentTemplate !== "paperPostcard") return;
+  const item = photoItems.find((photo) => photo.id === currentPhotoId);
+  if (item && item.paperTextureSeed == null) {
+    item.paperTextureSeed = crypto.getRandomValues(new Uint32Array(1))[0];
+  }
+  const identity = `${item?.file?.name || "photo"}:${item?.paperTextureSeed ?? 0}:${currentImage.naturalWidth}:${currentImage.naturalHeight}`;
+  window.paperSurface.apply(targetCanvas, Number(paperTextureRange.value) / 100, identity);
+}
+
+window.paperSurface.ready.then(() => {
+  previewCache.clear();
+  scheduleRenderPreview();
+});
 function renderFrame(targetCanvas, maxLongSide = 2400, options = {}) {
+  renderBaseFrame(targetCanvas, maxLongSide, options);
+  applyPaperTexture(targetCanvas);
+}
+
+function renderBaseFrame(targetCanvas, maxLongSide = 2400, options = {}) {
   const targetCtx = targetCanvas.getContext("2d");
   const roundedCorners = Boolean(options.roundedCorners);
 
@@ -1854,7 +1888,7 @@ function renderFrame(targetCanvas, maxLongSide = 2400, options = {}) {
     return;
   }
 
-  if (currentTemplate === "plainWhite") {
+  if (currentTemplate === "plainWhite" || currentTemplate === "paperPostcard") {
     const size = scaledImageSizeForMaxLongSide(maxLongSide);
     const border = Math.round(Math.min(size.width, size.height) * Number(borderRange.value) / 600);
     const bottomExtra = Math.round(Math.min(size.width, size.height) * Number(bottomRange.value) / 600);
@@ -2020,6 +2054,7 @@ function renderFrame(targetCanvas, maxLongSide = 2400, options = {}) {
 
 function previewRenderKey() {
   return [
+    paperTextureRange.value,
     currentTemplate,
     borderRange.value,
     bottomRange.value,
@@ -2182,8 +2217,10 @@ function preparePhotoRenderState(item) {
   syncCurrentPhotoState(item);
   item.layoutOrientation = detectImportedPhotoOrientation(item);
   photoOrientation = item.layoutOrientation;
-  if (!item.settingsInitialized && item.settings?.template === "editorialSide") {
-    item.settings = editorialSettingsForOrientation(item.layoutOrientation);
+  if (!item.settingsInitialized) {
+    item.settings = item.settings?.template === "editorialSide"
+      ? editorialSettingsForOrientation(item.layoutOrientation)
+      : templateSettingsForOrientation(item.settings.template, item.layoutOrientation, item.settings);
     item.settingsInitialized = true;
   }
   applyPhotoSettings(item);
@@ -2191,6 +2228,7 @@ function preparePhotoRenderState(item) {
 
 function currentDesignSettings() {
   return {
+    paperTexture: paperTextureRange.value,
     template: currentTemplate,
     border: borderRange.value,
     bottom: bottomRange.value,
@@ -2232,6 +2270,7 @@ function templateSettingsForOrientation(templateName, orientation, baseSettings 
     template: templateName,
     border: String(params.border ?? baseSettings.border),
     bottom: String(params.bottom ?? baseSettings.bottom),
+    paperTexture: String(params.paperTexture ?? baseSettings.paperTexture ?? 0),
     paperColor: params.paperColor ?? baseSettings.paperColor,
     textColor: params.textColor ?? baseSettings.textColor,
     headline: params.headline ?? baseSettings.headline,
@@ -2246,6 +2285,12 @@ function templateSettingsForOrientation(templateName, orientation, baseSettings 
     sublineOffset: String(params.sublineOffset ?? baseSettings.sublineOffset),
     infoOffset: String(params.infoOffset ?? baseSettings.infoOffset),
     cornerRadius: String(params.cornerRadius ?? baseSettings.cornerRadius),
+    watermarkX: String(params.watermarkX ?? baseSettings.watermarkX),
+    watermarkY: String(params.watermarkY ?? baseSettings.watermarkY),
+    watermarkSize: String(params.watermarkSize ?? baseSettings.watermarkSize),
+    brandLogoSize: String(params.brandLogoSize ?? baseSettings.brandLogoSize),
+    brandTextWeight: String(params.brandTextWeight ?? baseSettings.brandTextWeight),
+    watermarkOpacity: String(params.watermarkOpacity ?? baseSettings.watermarkOpacity),
     manualExifText: null,
     manualBrandModelText: null,
   };
@@ -2281,6 +2326,7 @@ function applyDesignSettings(settings) {
   });
 
   borderRange.value = settings.border ?? borderRange.value;
+  paperTextureRange.value = settings.paperTexture ?? "0";
   bottomRange.value = settings.bottom ?? bottomRange.value;
   paperColor.value = settings.paperColor ?? paperColor.value;
   textColor.value = settings.textColor ?? textColor.value;
@@ -2379,7 +2425,8 @@ function syncAllPhotoSettings() {
   previewCache.clear();
 }
 
-function handleDesignSettingsChange() {
+function handleDesignSettingsChange(modified = true) {
+  if (modified) designSettingsModified = true;
   saveCurrentPhotoSettings();
   rememberEditorialSettings();
   if (applyToAllEnabled) {
@@ -2754,7 +2801,7 @@ async function loadPhoto(file, options = {}) {
         manualExifText: null,
         manualBrandModelText: null,
       },
-      settingsInitialized: currentTemplate !== "editorialSide",
+      settingsInitialized: currentTemplate !== "editorialSide" && designSettingsModified,
     };
     nextPhotoId += 1;
     photoItems.push(item);
@@ -2913,6 +2960,7 @@ async function createExportBlob() {
     ? Number.POSITIVE_INFINITY
     : Number(exportSizeSelect.value);
   const exportCanvas = document.createElement("canvas");
+  if (currentTemplate === "paperPostcard") await window.paperSurface.ready;
   renderFrame(exportCanvas, exportMaxLongSide, { roundedCorners: shouldExportRounded });
   const blob = await canvasToBlob(
     exportCanvas,
@@ -3093,6 +3141,7 @@ async function exportAllImages() {
 }
 
 [
+  paperTextureRange,
   borderRange,
   bottomRange,
   paperColor,
@@ -3134,6 +3183,7 @@ async function exportAllImages() {
 });
 
 const rangeDefaults = {
+  paperTextureRange: 0,
   borderRange: 30,
   bottomRange: 30,
   headlineSizeRange: 65,
@@ -3459,7 +3509,7 @@ templateList.addEventListener("click", (event) => {
     return;
   }
   applyTemplate(button.dataset.template);
-  handleDesignSettingsChange();
+  handleDesignSettingsChange(false);
   resetPreviewViewport();
   updateLabels();
   syncAllRangeFills();
@@ -3468,7 +3518,7 @@ templateList.addEventListener("click", (event) => {
 
 resetButton.addEventListener("click", () => {
   resetControls();
-  handleDesignSettingsChange();
+  handleDesignSettingsChange(false);
   resetPreviewViewport();
   scheduleRenderPreview();
 });

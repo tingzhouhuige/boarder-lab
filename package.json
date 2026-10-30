@@ -1,7 +1,7 @@
 {
   "name": "border-lab",
   "productName": "Border Lab",
-  "version": "1.0.7",
+  "version": "1.0.8",
   "description": "Photo border and EXIF annotation tool for desktop and browser.",
   "main": "main.js",
   "author": "Xiaohui",
@@ -24,6 +24,7 @@
       "index.html",
       "styles.css",
       "app.js",
+      "paper-surface.js",
       "main.js",
       "preload.js",
       "assets/**/*"

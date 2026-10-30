@@ -1653,6 +1653,21 @@ input[type="color"]::-moz-color-swatch {
   content: none;
 }
 
+.template-paper-postcard {
+  background-color: #f4f0e7;
+}
+
+.paper-thumb-grain {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  opacity: 0.25;
+  background-image: url("assets/paper-cotton-surface.png");
+  background-size: cover;
+  mix-blend-mode: multiply;
+}
+
 .template-thumb.template-editorial::after {
   content: none;
 }
