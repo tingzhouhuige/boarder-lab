@@ -1,4 +1,15 @@
-# GitHub Release v1.0.6 发布说明
+# GitHub Release 发布版本规则
+
+`package.json` 的 `version` 是唯一版本来源。桌面标题处通过 Electron
+`app.getVersion()` 显示该版本，exe 文件名也使用该版本。
+
+发布时先更新 `package.json` 与 `package-lock.json` 中的版本并重新打包，
+GitHub Tag 使用 `v` 加相同版本（例如 `v2.1.0`），上传对应的
+`Border Lab 2.1.0.exe`。界面显示已安装版本，不从 GitHub 最新版本覆盖。
+
+下面保留旧版发布步骤供参考，版本号应替换为当前 `package.json` 的版本。
+
+## 旧版 v1.0.6 示例
 
 ## 建议上传内容
 

@@ -2,9 +2,22 @@ const { contextBridge, ipcRenderer } = require("electron");
 
 window.addEventListener("DOMContentLoaded", () => {
   document.body.classList.add("desktop-window");
+  ipcRenderer.on("border-lab:fullscreen-changed", (_event, fullscreen) => {
+    const button = document.querySelector('[data-window-action="fullscreen"]');
+    if (!button) return;
+    const label = fullscreen ? "退出全屏（Esc）" : "进入全屏";
+    button.setAttribute("aria-label", label);
+    button.setAttribute("aria-pressed", String(fullscreen));
+    button.title = label;
+  });
 });
 
 contextBridge.exposeInMainWorld("borderLabDesktop", {
+  getVersion: () => ipcRenderer.invoke("border-lab:app-version"),
+  photoThumbnail: (filePath) => ipcRenderer.invoke("border-lab:photo-thumbnail", filePath),
+  pauseThumbnails: () => ipcRenderer.invoke("border-lab:pause-thumbnails"),
+  browsePhotos: (changeFolder = false) => ipcRenderer.invoke("border-lab:browse-photos", changeFolder),
+  choosePhotos: (paths) => ipcRenderer.invoke("border-lab:choose-photos", paths),
   openPhoto: async () => {
     return ipcRenderer.invoke("border-lab:open-photo");
   },

@@ -1,0 +1,22 @@
+const fs = require('fs');
+const path = require('path');
+const assert = require('assert');
+const {createThumbnailService} = require('./thumbnail-service.cjs');
+const helper = path.join(__dirname,'dist','blocked-thumbnail-fixture.cjs');
+fs.writeFileSync(helper, "process.on('message',()=>{const end=Date.now()+10000;while(Date.now()<end){};process.send({id:1,data:'late'})});");
+(async()=>{
+  const service=createThumbnailService(process.execPath,helper,300);
+  let ticks=0; const timer=setInterval(()=>ticks++,10);
+  let started=Date.now();
+  const pending=service.request('photo');
+  setTimeout(()=>service.cancel(),100);
+  assert.strictEqual(await pending,null);
+  const canceledMs=Date.now()-started;
+  assert(canceledMs<1000 && ticks>=3,'blocked worker must not block main event loop or cancellation');
+  started=Date.now();
+  assert.strictEqual(await service.request('photo'),null);
+  const timeoutMs=Date.now()-started;
+  assert(timeoutMs<1500,'stuck worker timeout');
+  clearInterval(timer);service.cancel();
+  console.log(JSON.stringify({pass:true,canceledMs,timeoutMs,eventLoopTicks:ticks}));
+})().catch(error=>{console.error(error);process.exit(1)});

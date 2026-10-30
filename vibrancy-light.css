@@ -71,7 +71,7 @@ input[type="range"]::-moz-range-thumb { height: 11px; width: 11px; background: w
 .toggles { gap: 4px 10px; border-top: 1px solid #d8d9df; padding-top: 13px; }
 .toggle-row { background: transparent; box-shadow: none; border: 0; border-radius: 0; padding: 5px 0; min-height: 38px; gap: 7px; color: #5a606a; font-size: 11px; line-height: 1.5; backdrop-filter: none; }
 .toggle-row input { accent-color: #748ba6; width: 13px; height: 13px; flex-shrink: 0; }
-.action-row { position: sticky; bottom: 0; z-index: 5; margin-top: 4px; padding: 14px 0 18px; border-top: 1px solid #d4d6dc; background: #ececf0; grid-template-columns: 1fr 1.2fr .9fr; gap: 6px; }
+.action-row { position: sticky; bottom: 0; z-index: 5; margin-top: 4px; padding: 14px 0 36px; border-top: 1px solid #d4d6dc; background: #ececf0; grid-template-columns: 1fr 1.2fr .9fr; gap: 6px; }
 .action-button, .action-button.primary, .action-button.secondary, .dialog-button { background: #f8f8fa; border: 1px solid #c9cdd5; border-radius: 6px; color: #434a56; font-size: 11px; font-weight: 550; min-height: 33px; padding: 6px 8px; box-shadow: 0 1px 2px #00000005; backdrop-filter: none; }
 .action-button.primary { color: #096acb; background: #f5f8fc; border-color: #bdccdf; }
 .action-button:hover, .action-button.primary:hover, .action-button.secondary:hover { background: #fff; box-shadow: none; }
@@ -313,3 +313,10 @@ input[type="range"]::-webkit-slider-thumb { border-color: #bbb; }
 [data-theme="dark"] .confirm-dialog p { color: #bbb; }
 [data-theme="dark"] input[type="range"]::-webkit-slider-runnable-track { background: #555; }
 [data-theme="dark"] .toggle-row input[type="checkbox"] { accent-color: #999; }
+.brand-title-row h1 .app-version { display: inline-block; margin-left: 6px; vertical-align: middle; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; font-size: 10px; font-weight: 400; letter-spacing: 0; color: #777; white-space: nowrap; }
+.brand-title-row h1 .app-version[hidden] { display: none; }
+[data-theme="dark"] .brand-title-row h1 .app-version { color: #aaa; }
+.web-fullscreen-toggle { position: absolute; top: -4px; right: 36px; width: 32px; height: 32px; display: grid; place-items: center; padding: 0; border: 1px solid transparent; border-radius: 6px; color: #555; background: transparent; cursor: pointer; }
+.web-fullscreen-toggle:hover { background: #ddd; }
+[data-theme="dark"] .web-fullscreen-toggle { color: #ccc; }
+[data-theme="dark"] .web-fullscreen-toggle:hover { background: #3b3b3b; }

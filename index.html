@@ -11,6 +11,9 @@
   <div class="desktop-titlebar" aria-hidden="true">
     <div class="desktop-drag-region"></div>
     <div class="desktop-window-controls">
+      <button class="window-control-button" type="button" data-window-action="fullscreen" aria-label="进入全屏" title="进入全屏" aria-pressed="false">
+        <svg class="window-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1" aria-hidden="true"><path d="M6 2H2v4m8-4h4v4M2 10v4h4m8-4v4h-4"/></svg>
+      </button>
       <button class="window-control-button" type="button" data-window-action="minimize" aria-label="最小化">
         <span class="window-icon window-icon-minimize"></span>
       </button>
@@ -30,7 +33,7 @@
         <button id="themeToggle" class="theme-toggle" type="button" aria-label="切换深色模式" aria-pressed="false" title="切换深色模式">☾</button>
         <p class="eyebrow">Border Lab</p>
         <div class="brand-title-row">
-          <h1>边框实验室</h1>
+          <h1>边框实验室 <small id="appVersion" class="app-version" hidden></small></h1>
           <span class="design-credit">Crafted by Xiaohui</span>
         </div>
         <p class="subtitle">用于为照片添加边框、读取常见 EXIF 信息，并导出带标注的成片。</p>
@@ -191,6 +194,10 @@
         <label id="photoStrokeRow" class="toggle-row">
           <input id="photoStroke" type="checkbox">
           <span>照片描边</span>
+        </label>
+        <label id="watermarkInvertRow" class="toggle-row hidden">
+          <input id="watermarkInvert" type="checkbox">
+          <span>水印反色</span>
         </label>
         <div id="watermarkSelectRow" class="toggle-row watermark-select-row hidden">
           <button id="selectWatermarkButton" class="watermark-select-button" type="button">
@@ -404,6 +411,11 @@
 
   <script src="theme.js"></script>
   <script src="paper-surface.js"></script>
+  <script src="version.js"></script>
+  <script src="web-storage.js"></script>
+  <script src="web-platform.js"></script>
+  <script src="photo-picker.js"></script>
   <script src="app.js"></script>
+  <script src="edit-history.js"></script>
 </body>
 </html>

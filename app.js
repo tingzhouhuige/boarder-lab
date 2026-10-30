@@ -1,4 +1,12 @@
 const imageInput = document.getElementById("imageInput");
+if (window.borderLabDesktop?.getVersion) {
+  window.borderLabDesktop.getVersion().then(version => {
+    const label = document.getElementById("appVersion");
+    label.textContent = `v${version}`;
+    label.title = `当前安装版本 ${version}`;
+    label.hidden = false;
+  }).catch(error => console.error("Failed to read app version", error));
+}
 const borderRange = document.getElementById("borderRange");
 const bottomRange = document.getElementById("bottomRange");
 const paperTextureRange = document.getElementById("paperTextureRange");
@@ -74,6 +82,8 @@ const watermarkOpacityLabel = document.querySelector("label[for='watermarkOpacit
 const brandLogoSizeRow = document.getElementById("brandLogoSizeRow");
 const brandTextWeightRow = document.getElementById("brandTextWeightRow");
 const watermarkSelectRow = document.getElementById("watermarkSelectRow");
+const watermarkInvertRow = document.getElementById("watermarkInvertRow");
+const watermarkInvert = document.getElementById("watermarkInvert");
 const rotateButton = document.getElementById("rotateButton");
 const desktopTitlebar = document.querySelector(".desktop-titlebar");
 const confirmDialog = document.getElementById("confirmDialog");
@@ -111,6 +121,7 @@ let previewDragStartY = 0;
 let previewDragOriginX = 0;
 let previewDragOriginY = 0;
 let photoItems = [];
+let editHistory = null;
 let currentPhotoId = null;
 let nextPhotoId = 1;
 let renderPreviewFrame = null;
@@ -139,6 +150,9 @@ const fontMap = {
 };
 
 const watermarkImage = new Image();
+let watermarkInverted = false;
+let invertedWatermarkCanvas = null;
+let invertedWatermarkCanvasKey = "";
 const watermarkFileInput = document.createElement("input");
 watermarkFileInput.type = "file";
 watermarkFileInput.accept = "image/*";
@@ -387,6 +401,10 @@ function updateWatermarkControlLabels(name) {
   brandTextWeightRow.classList.toggle("hidden", !isBrandWatermarkTemplate);
 }
 
+function syncWatermarkInvertControl() {
+  watermarkInvert.checked = watermarkInverted;
+}
+
 function updateTemplateControlLabels(name) {
   const isEditorialTemplate = name === "editorialSide";
   bottomRangeLabel.textContent = ["plainWhite", "paperPostcard"].includes(name) ? "下方额外留白" : isEditorialTemplate ? "文字栏宽度" : "底部说明区";
@@ -410,6 +428,7 @@ function updateTemplateControlVisibility(name) {
   const isEditorialTemplate = name === "editorialSide";
   const isClassicTemplate = name === "classic" || name === "editorialSide";
   const isOverlayWatermarkTemplate = isOverlayTemplate(name);
+  const isSignatureWatermarkTemplate = name === "watermark";
 
   document.querySelectorAll(".control-panel .template-hidden").forEach((element) => {
     element.classList.remove("template-hidden");
@@ -426,10 +445,11 @@ function updateTemplateControlVisibility(name) {
   infoControlsRow.classList.toggle("template-hidden", isYiyinTemplate || isOverlayWatermarkTemplate);
   paperColorSection.classList.toggle("template-hidden", isYiyinTemplate || isOverlayWatermarkTemplate);
   photoStrokeRow.classList.toggle("template-hidden", !(isClassicTemplate || name === "plainWhite"));
-  useExifDateRow.classList.toggle("template-hidden", isEditorialTemplate);
-  useExifCameraRow.classList.toggle("template-hidden", isEditorialTemplate);
+  useExifDateRow.classList.toggle("template-hidden", isEditorialTemplate || isSignatureWatermarkTemplate);
+  useExifCameraRow.classList.toggle("template-hidden", isEditorialTemplate || isSignatureWatermarkTemplate);
   watermarkControls.classList.toggle("hidden", !isOverlayWatermarkTemplate);
-  watermarkSelectRow.classList.toggle("hidden", name !== "watermark");
+  watermarkSelectRow.classList.toggle("hidden", !isSignatureWatermarkTemplate);
+  watermarkInvertRow.classList.toggle("hidden", !isSignatureWatermarkTemplate);
   updateTemplateControlLabels(name);
   updateWatermarkControlLabels(name);
   paperTextureRange.closest(".panel-section").classList.toggle("template-hidden", name !== "paperPostcard");
@@ -694,6 +714,8 @@ function resetControls() {
   brandLogoSizeRange.value = "100";
   brandTextWeightRange.value = "600";
   watermarkOpacityRange.value = "70";
+  watermarkInverted = false;
+  syncWatermarkInvertControl();
   manualExifText = null;
   manualBrandModelText = null;
   applyTemplate(currentTemplate);
@@ -1508,6 +1530,53 @@ function renderGalleryDarkFrame(targetCanvas, maxLongSide, roundedCorners) {
   }
 }
 
+function invertedWatermarkSource() {
+  const key = `${watermarkImage.naturalWidth}x${watermarkImage.naturalHeight}|${watermarkImage.src}`;
+  if (invertedWatermarkCanvas && invertedWatermarkCanvasKey === key) {
+    return invertedWatermarkCanvas;
+  }
+
+  const width = watermarkImage.naturalWidth;
+  const height = watermarkImage.naturalHeight;
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext("2d");
+  ctx.drawImage(watermarkImage, 0, 0);
+
+  try {
+    // Invert colour channels only; alpha stays untouched so the opacity slider keeps working.
+    const pixels = ctx.getImageData(0, 0, width, height);
+    const data = pixels.data;
+    for (let index = 0; index < data.length; index += 4) {
+      data[index] = 255 - data[index];
+      data[index + 1] = 255 - data[index + 1];
+      data[index + 2] = 255 - data[index + 2];
+    }
+    ctx.putImageData(pixels, 0, 0);
+    invertedWatermarkCanvas = canvas;
+    invertedWatermarkCanvasKey = key;
+    return canvas;
+  } catch (error) {
+    const fallback = document.createElement("canvas");
+    fallback.width = width;
+    fallback.height = height;
+    const fallbackCtx = fallback.getContext("2d");
+    fallbackCtx.filter = "invert(1)";
+    fallbackCtx.drawImage(watermarkImage, 0, 0);
+    invertedWatermarkCanvas = fallback;
+    invertedWatermarkCanvasKey = key;
+    return fallback;
+  }
+}
+
+function watermarkSourceForRender() {
+  if (!(watermarkImage.complete && watermarkImage.naturalWidth > 0)) {
+    return null;
+  }
+  return watermarkInverted ? invertedWatermarkSource() : watermarkImage;
+}
+
 function renderWatermarkFrame(targetCanvas, maxLongSide, roundedCorners) {
   const targetCtx = targetCanvas.getContext("2d");
   const size = scaledImageSizeForMaxLongSide(maxLongSide);
@@ -1525,20 +1594,23 @@ function renderWatermarkFrame(targetCanvas, maxLongSide, roundedCorners) {
 
   drawImageWithOrientation(targetCtx, currentImage, { x: 0, y: 0, width: outputWidth, height: outputHeight }, currentOrientation);
 
-  if (watermarkImage.complete && watermarkImage.naturalWidth > 0) {
+  const watermarkSource = watermarkSourceForRender();
+  if (watermarkSource) {
     const wmSizePercent = Number(watermarkSizeRange.value) / 100;
     const wmOpacity = Number(watermarkOpacityRange.value) / 100;
     const wmXPercent = Number(watermarkXRange.value) / 100;
     const wmYPercent = Number(watermarkYRange.value) / 100;
 
+    const wmNaturalWidth = watermarkSource.naturalWidth || watermarkSource.width;
+    const wmNaturalHeight = watermarkSource.naturalHeight || watermarkSource.height;
     const wmWidth = Math.round(outputWidth * wmSizePercent);
-    const wmHeight = Math.round(wmWidth * (watermarkImage.naturalHeight / watermarkImage.naturalWidth));
+    const wmHeight = Math.round(wmWidth * (wmNaturalHeight / wmNaturalWidth));
     const wmX = Math.round((outputWidth - wmWidth) * wmXPercent);
     const wmY = Math.round((outputHeight - wmHeight) * wmYPercent);
 
     targetCtx.save();
     targetCtx.globalAlpha = wmOpacity;
-    targetCtx.drawImage(watermarkImage, wmX, wmY, wmWidth, wmHeight);
+    targetCtx.drawImage(watermarkSource, wmX, wmY, wmWidth, wmHeight);
     targetCtx.restore();
   }
 
@@ -2185,6 +2257,12 @@ selectWatermarkButton.addEventListener("click", () => {
   watermarkFileInput.click();
 });
 
+watermarkInvert.addEventListener("change", () => {
+  watermarkInverted = watermarkInvert.checked;
+  handleDesignSettingsChange();
+  scheduleRenderPreview();
+});
+
 watermarkFileInput.addEventListener("change", (event) => {
   const file = event.target.files[0];
   if (!file) return;
@@ -2193,6 +2271,7 @@ watermarkFileInput.addEventListener("change", (event) => {
   reader.onload = (e) => {
     watermarkImage.src = e.target.result;
     watermarkFileName.textContent = file.name;
+    editHistory?.commit();
     previewCache.clear();
     scheduleRenderPreview();
     
@@ -2263,6 +2342,7 @@ function currentDesignSettings() {
     brandLogoSize: brandLogoSizeRange.value,
     brandTextWeight: brandTextWeightRange.value,
     watermarkOpacity: watermarkOpacityRange.value,
+    watermarkInverted,
     manualExifText,
     manualBrandModelText,
   };
@@ -2362,6 +2442,8 @@ function applyDesignSettings(settings) {
   brandLogoSizeRange.value = settings.brandLogoSize ?? brandLogoSizeRange.value;
   brandTextWeightRange.value = settings.brandTextWeight ?? brandTextWeightRange.value;
   watermarkOpacityRange.value = settings.watermarkOpacity ?? watermarkOpacityRange.value;
+  watermarkInverted = Boolean(settings.watermarkInverted);
+  syncWatermarkInvertControl();
   manualExifText = Object.prototype.hasOwnProperty.call(settings, "manualExifText")
     ? settings.manualExifText
     : null;
@@ -2546,21 +2628,24 @@ async function setCurrentPhoto(id) {
   updateImageMetaLabel();
   resetPreviewViewport();
   renderPreview();
+  editHistory?.commit();
 }
 
-function clearPhoto() {
+async function clearPhoto() {
   const index = currentPhotoIndex();
   if (index >= 0) {
     const [removed] = photoItems.splice(index, 1);
     if (removed?.objectUrlOwned && removed.url) {
-      URL.revokeObjectURL(removed.url);
+      if (editHistory) editHistory.retain(removed.url);
+      else URL.revokeObjectURL(removed.url);
     }
     previewCache.delete(removed.id);
   }
 
   imageInput.value = "";
   const nextItem = photoItems[Math.min(index, photoItems.length - 1)] || null;
-  setCurrentPhoto(nextItem?.id || null);
+  await setCurrentPhoto(nextItem?.id || null);
+  editHistory?.commit();
 }
 
 function showConfirmDialog(message) {
@@ -2610,7 +2695,8 @@ async function clearAllPhotos() {
 
   photoItems.forEach((item) => {
     if (item.objectUrlOwned && item.url) {
-      URL.revokeObjectURL(item.url);
+      if (editHistory) editHistory.retain(item.url);
+      else URL.revokeObjectURL(item.url);
     }
   });
   photoItems = [];
@@ -2622,6 +2708,7 @@ async function clearAllPhotos() {
   updateImageMetaLabel();
   resetPreviewViewport();
   renderPreview();
+  editHistory?.commit();
 }
 
 function fileToArrayBuffer(file) {
@@ -2854,9 +2941,11 @@ async function handleFiles(fileList) {
   } else {
     updatePhotoList();
   }
+  editHistory?.commit();
 }
 
 function desktopPhotoToFile(photo) {
+  if (photo instanceof File) return photo;
   if (!photo || photo.canceled) {
     return null;
   }
@@ -2882,6 +2971,11 @@ function desktopPhotosToFiles(result) {
 }
 
 async function openPhotoPicker() {
+  if (window.borderLabDesktop?.browsePhotos) {
+    const result = await window.openRememberingPhotoPicker();
+    if (result && !result.canceled) await handleFiles(desktopPhotosToFiles(result));
+    return;
+  }
   if (window.borderLabDesktop?.openPhoto) {
     try {
       const result = await window.borderLabDesktop.openPhoto();
