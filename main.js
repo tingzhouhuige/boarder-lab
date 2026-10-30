@@ -37,7 +37,7 @@ function createWindow() {
     autoHideMenuBar: true,
     frame: false,
     show: true,
-    backgroundColor: "#f8f5ef",
+    backgroundColor: "#f5f5f7",
     icon: path.join(
       __dirname,
       "assets",

@@ -425,7 +425,7 @@ function updateTemplateControlVisibility(name) {
 
   infoControlsRow.classList.toggle("template-hidden", isYiyinTemplate || isOverlayWatermarkTemplate);
   paperColorSection.classList.toggle("template-hidden", isYiyinTemplate || isOverlayWatermarkTemplate);
-  photoStrokeRow.classList.toggle("template-hidden", !isClassicTemplate);
+  photoStrokeRow.classList.toggle("template-hidden", !(isClassicTemplate || name === "plainWhite"));
   useExifDateRow.classList.toggle("template-hidden", isEditorialTemplate);
   useExifCameraRow.classList.toggle("template-hidden", isEditorialTemplate);
   watermarkControls.classList.toggle("hidden", !isOverlayWatermarkTemplate);
@@ -1902,6 +1902,14 @@ function renderBaseFrame(targetCanvas, maxLongSide = 2400, options = {}) {
     targetCtx.fillStyle = "#ffffff";
     targetCtx.fillRect(0, 0, targetCanvas.width, targetCanvas.height);
     drawImageWithOrientation(targetCtx, currentImage, { x: border, y: border, width: size.width, height: size.height }, currentOrientation);
+    if (currentTemplate === "plainWhite" && photoStroke.checked) {
+      const strokeW = Math.max(1, Math.round(targetCanvas.width * 0.0015));
+      targetCtx.save();
+      targetCtx.strokeStyle = "#000000";
+      targetCtx.lineWidth = strokeW;
+      targetCtx.strokeRect(border - strokeW / 2, border - strokeW / 2, size.width + strokeW, size.height + strokeW);
+      targetCtx.restore();
+    }
     targetCtx.restore();
     emptyState.classList.add("hidden");
     return;

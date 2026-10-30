@@ -6,6 +6,7 @@
 
 ## 功能亮点
 
+- 全新 macOS 风格界面，深色 / 浅色模式切换并自动记忆
 - 导入 `JPG / JPEG / PNG / WebP`
 - 读取常见 JPEG EXIF 信息（支持等效焦段）
 - 自动追加拍摄日期、镜头信息、焦段
@@ -25,11 +26,13 @@
 ## 当前模板
 
 - 模板 1：白框（经典横屏 / 竖屏）
-- 模板 2：壹印（模糊背景横屏 / 竖屏）
-- 模板 3：签名水印（自定义水印图片）
-- 模板 4：哈苏水印（品牌风格）
-- 模板 5：尼康水印（品牌风格）
-- 模板 6：杂志侧栏（左侧照片、右侧相机 / 镜头 / 地点文字）
+- 模板 2：纯白框（可调整下方额外留白，支持照片描边）
+- 模板 3：纸纹明信片（照片与白边共同覆盖纸张材质）
+- 模板 4：壹印（模糊背景横屏 / 竖屏）
+- 模板 5：杂志侧栏（左侧照片、右侧相机 / 镜头 / 地点文字）
+- 模板 6：签名水印（自定义水印图片）
+- 模板 7：哈苏水印（品牌风格）
+- 模板 8：尼康水印（品牌风格）
 
 ## 适合的使用场景
 
@@ -84,17 +87,23 @@ npm run dist:installer
 ├─ assets/
 │  ├─ app-icon.ico
 │  ├─ app-icon.png
+│  ├─ icon-sizes/
 │  ├─ hasselblad-logo.svg
 │  ├─ nikon-logo.svg
+│  ├─ paper-cotton-surface.png
+│  ├─ paper-cotton-surface-2.png
 │  ├─ template-classic.jpg
 │  ├─ template-classic-alt.jpg
 │  └─ template-dark.jpg
 ├─ app.js
+├─ theme.js
+├─ paper-surface.js
 ├─ main.js
 ├─ preload.js
 ├─ index.html
 ├─ package.json
 ├─ styles.css
+├─ vibrancy-light.css
 ├─ start.bat
 └─ README.md
 ```
@@ -105,7 +114,10 @@ npm run dist:installer
 
 - `index.html`
 - `styles.css`
+- `vibrancy-light.css`
+- `theme.js`
 - `app.js`
+- `paper-surface.js`
 - `main.js`
 - `preload.js`
 - `assets/`
@@ -118,12 +130,12 @@ npm run dist:installer
 
 - `v1.0.1`
 - `v1.0.2`
-- `v1.1.0`
+- `v2.0.0`
 
 可参考仓库内的：
 
 - `GITHUB_RELEASE_GUIDE.md`
-- `RELEASE_NOTES_v1.0.1.md`
+- `RELEASE_NOTES_v2.0.0.md`
 
 ### 启用 GitHub Pages
 

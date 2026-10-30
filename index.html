@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>边框实验室</title>
   <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="vibrancy-light.css">
 </head>
 <body>
   <div class="desktop-titlebar" aria-hidden="true">
@@ -26,6 +27,7 @@
     <aside class="control-panel">
       <div class="control-panel-scroll">
       <div class="brand-block">
+        <button id="themeToggle" class="theme-toggle" type="button" aria-label="切换深色模式" aria-pressed="false" title="切换深色模式">☾</button>
         <p class="eyebrow">Border Lab</p>
         <div class="brand-title-row">
           <h1>边框实验室</h1>
@@ -400,6 +402,7 @@
     </div>
   </div>
 
+  <script src="theme.js"></script>
   <script src="paper-surface.js"></script>
   <script src="app.js"></script>
 </body>

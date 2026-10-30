@@ -1,6 +1,6 @@
 # Paper postcard materials
 
-Generated with the built-in imagegen tool, 2026-10-30. Project assets:
+Project assets, 2026-10-30:
 
 - `assets/paper-cotton-surface.png`: full-bleed macro scan of blank warm-white uncoated cotton fine-art postcard stock, irregular cellulose fibres, shallow meandering creases, soft diffuse raking light. No text, borders, stains, regular weave, repetitive noise or heavy crumpling.
 - `assets/paper-cotton-surface-2.png`: a different, slightly smoother ivory-white sheet, asymmetric shallow wrinkles including a short forked crease near the upper right and a bent crease near the lower left. Neutral diffuse lighting, no objects, text, stains, vignette, repeated noise or distressed paper.
