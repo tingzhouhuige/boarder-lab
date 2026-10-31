@@ -7,6 +7,7 @@
   "author": "Xiaohui",
   "license": "UNLICENSED",
   "scripts": {
+    "build:web": "node sync-version.cjs",
     "prestart": "node sync-version.cjs",
     "predist": "node sync-version.cjs",
     "predist:latest": "node sync-version.cjs",
@@ -27,6 +28,7 @@
     "productName": "Border Lab",
     "files": [
       "index.html",
+      "border-lab.js",
       "styles.css",
       "vibrancy-light.css",
       "theme.js",

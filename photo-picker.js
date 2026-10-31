@@ -186,7 +186,14 @@
       loadController = new AbortController();
       status.textContent = "等待选择或授权文件夹…";
       try {
-        const data = await window.borderLabDesktop.browsePhotos(changeFolder, {
+        if(changeFolder && window.borderLabDesktop.preparePhotoFolder){
+          modal.close();
+          const prepared=await window.borderLabDesktop.preparePhotoFolder(true,{signal:loadController.signal});
+          if(!modal.isConnected)return;
+          modal.showModal();
+          if(prepared.canceled){windowStart=-1;renderWindow();return;}
+        }
+        const data = await window.borderLabDesktop.browsePhotos(window.borderLabDesktop.preparePhotoFolder?false:changeFolder, {
           signal: loadController.signal,
           onProgress: (count, scanned) => { if(modal.isConnected)status.textContent = `正在读取文件夹：已检查 ${scanned} 个文件，找到 ${count} 张照片…`; }
         });
@@ -255,7 +262,7 @@
         warmCursor=Math.max(0,rememberedIndex);
         if (rememberedIndex >= 0) showIndex(rememberedIndex);
       } catch (error) { status.textContent = `读取失败：${error.message}。请更换文件夹重试。`; return; }
-      finally { loadController = null; busy = false; folder.disabled = false; confirm.disabled = !selected.size; pumpThumbnails(); }
+      finally { if(modal.isConnected&&!modal.open)modal.showModal(); loadController = null; busy = false; folder.disabled = false; confirm.disabled = !selected.size; pumpThumbnails(); }
       if (files.length) update();
     };
     const cancel = () => { if (loadController) { loadController.abort(); close({ canceled: true }); } else if (!busy) close({ canceled: true }); };

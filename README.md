@@ -13,6 +13,7 @@
 - 当前可见照片优先加载，滚动时暂停图片加载，空闲时后台预读并缓存缩略图。
 - 桌面版使用独立缩略图进程和磁盘缓存；网页版使用 Web Worker 和 IndexedDB，本地处理照片。
 - 新增全屏按钮、自动版本号和底部按钮留白。
+- 网页优先加载编辑器与导入功能；模板卡片使用独立清晰预览，纸纹原图按需加载，导出继续使用原纸纹效果。修改源码后运行 `npm run build:web` 更新网页脚本。
 - 网页版完整文件夹体验建议使用桌面 Chrome / Edge；其他浏览器保留普通照片导入。文件夹可能需要重新授权，清理网站数据会清除缓存。
 - 网页版：[在线使用](https://tingzhouhuige.github.io/boarder-lab/)。Windows 程序见 [v2.1.0 Release](https://github.com/tingzhouhuige/boarder-lab/releases/tag/v2.1.0)。
 

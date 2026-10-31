@@ -4,7 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>边框实验室</title>
-  <link rel="stylesheet" href="styles.css">
+  <link rel="preload" href="border-lab.js?startup=5" as="script" fetchpriority="high">
+  <link rel="stylesheet" href="styles.css?startup=5">
   <link rel="stylesheet" href="vibrancy-light.css">
 </head>
 <body>
@@ -40,8 +41,8 @@
       </div>
 
       <section class="panel-section panel-span-2">
-        <button id="uploadButton" class="upload-card" type="button">
-          <span class="upload-title">导入照片</span>
+        <button id="uploadButton" class="upload-card" type="button" disabled>
+          <span class="upload-title">正在加载编辑器…</span>
           <span class="upload-hint">支持 JPG / JPEG / PNG / WebP，JPEG 可读取常见 EXIF</span>
         </button>
         <input id="imageInput" type="file" accept="image/jpeg,image/png,image/webp" multiple hidden>
@@ -409,13 +410,6 @@
     </div>
   </div>
 
-  <script src="theme.js"></script>
-  <script src="paper-surface.js"></script>
-  <script src="version.js"></script>
-  <script src="web-storage.js?folder-restore=4"></script>
-  <script src="web-platform.js?folder-restore=4"></script>
-  <script src="photo-picker.js?folder-restore=4"></script>
-  <script src="app.js"></script>
-  <script src="edit-history.js"></script>
+  <script defer src="border-lab.js?startup=5" fetchpriority="high"></script>
 </body>
 </html>

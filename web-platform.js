@@ -1,7 +1,7 @@
 (() => {
   if(window.borderLabDesktop)return;
   const storage=window.borderLabStorage;
-  let currentFolder=null,folderId='',entries=new Map(),worker=null,nextId=0,thumbnailGeneration=0;
+  let currentFolder=null,folderPrepared=false,folderId='',entries=new Map(),worker=null,nextId=0,thumbnailGeneration=0;
   const pending=new Map();
   // Load before the click: waiting for IndexedDB can lose user activation.
   let rememberedFolder=null,knownFolders=[],rememberedPhoto=null;
@@ -28,16 +28,22 @@
     loadWatermark:async()=>await storage.get('settings','watermark')||{},
   };
   if('showDirectoryPicker' in window && 'Worker' in window && 'OffscreenCanvas' in window){
+    const prepare=async(change,signal)=>{
+      let handle=currentFolder||rememberedFolder?.handle;
+      if(change||!handle)handle=await window.showDirectoryPicker({id:'border-lab-import-folder',mode:'read'});
+      else if(await bounded(handle.requestPermission({mode:'read'}),signal,60000)!=='granted')throw Error('请允许读取照片文件夹，然后重新点击导入');
+      if(signal?.aborted)throw new DOMException('已取消','AbortError');
+      currentFolder=handle;folderPrepared=true;
+      return handle;
+    };
+    platform.preparePhotoFolder=async(change=false,{signal}={})=>{
+      try{await prepare(change,signal);return {canceled:false};}
+      catch(error){if(error.name==='AbortError')return {canceled:true};throw error;}
+    };
     platform.browsePhotos=async(change=false,{signal,onProgress}={})=>{
       try{
-        let handle=currentFolder||rememberedFolder?.handle;
-        if(change){handle=await window.showDirectoryPicker({id:'border-lab-import-folder',mode:'read'});}
-        else{
-          if(handle){
-            if(await bounded(handle.requestPermission({mode:'read'}),signal,60000)!=='granted')handle=null;
-          }
-          if(!handle)handle=await window.showDirectoryPicker({id:'border-lab-import-folder',mode:'read'});
-        }
+        const handle=folderPrepared&&!change?currentFolder:await prepare(change,signal);
+        folderPrepared=false;
         await pauseThumbnails();
         if(signal?.aborted)return {canceled:true};
         onProgress?.(0,0);

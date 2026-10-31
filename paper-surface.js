@@ -3,7 +3,12 @@ class PaperSurface {
   constructor() {
     this.cache = new Map();
     this.images = [];
-    this.ready = Promise.all(['assets/paper-cotton-surface.png', 'assets/paper-cotton-surface-2.png'].map((src) => {
+    this.loading = null;
+    this.loaded = false;
+  }
+
+  get ready() {
+    return this.loading ||= Promise.all(['assets/paper-cotton-surface.png', 'assets/paper-cotton-surface-2.png'].map((src) => {
       const image = new Image();
       this.images.push(image);
       return new Promise((resolve) => {
@@ -11,7 +16,12 @@ class PaperSurface {
         image.onerror = () => resolve(false);
         image.src = src;
       });
-    })).then((loaded) => loaded.every(Boolean));
+    })).then((loaded) => {
+      this.loaded = loaded.every(Boolean);
+      if (this.loaded) window.dispatchEvent(new Event('paper-surface-ready'));
+      else { this.images = []; this.loading = null; }
+      return this.loaded;
+    });
   }
 
   sheet(width, height, identity) {
@@ -62,6 +72,8 @@ class PaperSurface {
   }
 
   apply(canvas, strength, identity) {
+    if (!strength) return;
+    if (!this.loaded) { void this.ready; return; }
     if (!strength || this.images.some((image) => !image.complete || !image.naturalWidth)) return;
     const ctx = canvas.getContext('2d');
     const layer = document.createElement('canvas');

@@ -1934,7 +1934,7 @@ function applyPaperTexture(targetCanvas) {
   window.paperSurface.apply(targetCanvas, Number(paperTextureRange.value) / 100, identity);
 }
 
-window.paperSurface.ready.then(() => {
+window.addEventListener('paper-surface-ready', () => {
   previewCache.clear();
   scheduleRenderPreview();
 });
@@ -2972,6 +2972,15 @@ function desktopPhotosToFiles(result) {
 
 async function openPhotoPicker() {
   if (window.borderLabDesktop?.browsePhotos) {
+    if (window.borderLabDesktop.preparePhotoFolder) {
+      try {
+        const prepared = await window.borderLabDesktop.preparePhotoFolder();
+        if (prepared.canceled) return;
+      } catch (error) {
+        imageMetaLabel.textContent = `无法打开照片文件夹：${error.message}`;
+        return;
+      }
+    }
     const result = await window.openRememberingPhotoPicker();
     if (result && !result.canceled) await handleFiles(desktopPhotosToFiles(result));
     return;
@@ -3062,7 +3071,7 @@ async function createExportBlob() {
     ? Number.POSITIVE_INFINITY
     : Number(exportSizeSelect.value);
   const exportCanvas = document.createElement("canvas");
-  if (currentTemplate === "paperPostcard") await window.paperSurface.ready;
+  if (currentTemplate === "paperPostcard" && !await window.paperSurface.ready) throw Error('纸纹原图尚未加载成功，请检查网络后重试导出');
   renderFrame(exportCanvas, exportMaxLongSide, { roundedCorners: shouldExportRounded });
   const blob = await canvasToBlob(
     exportCanvas,
@@ -3702,3 +3711,6 @@ async function loadSavedWatermark() {
   }
 }
 loadSavedWatermark();
+uploadButton.disabled = false;
+uploadButton.querySelector('.upload-title').textContent = '导入照片';
+window.BORDER_LAB_READY = true;
