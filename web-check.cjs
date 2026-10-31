@@ -11,7 +11,8 @@ const server=http.createServer((req,res)=>{
  requested.push(new URL(req.url,'http://localhost').pathname);
  const target=path.resolve(root,'.'+decodeURIComponent(new URL(req.url,'http://localhost').pathname));
  if(!target.startsWith(root+path.sep)){res.writeHead(403).end();return;}
- fs.readFile(target,(error,bytes)=>{if(error){res.writeHead(404).end();return;}res.setHeader('Content-Type',types[path.extname(target)]||'application/octet-stream');res.end(bytes);});
+ const send=()=>fs.readFile(target,(error,bytes)=>{if(error){res.writeHead(404).end();return;}res.setHeader('Content-Type',types[path.extname(target)]||'application/octet-stream');res.end(bytes);});
+ if(target.includes('paper-cotton-surface'))setTimeout(send,1000);else send();
 });
 app.whenReady().then(async()=>{
  let stage='starting';
@@ -73,6 +74,15 @@ app.whenReady().then(async()=>{
    assert(changeUnderModal===false,'changing folders temporarily closes custom modal before native picker');
    window.showDirectoryPicker=originalPicker;testFolder.requestPermission=originalPermission;
    document.querySelector('.remember-photo-picker [data-cancel]').click();await actualImport;
+   document.querySelector('[data-template="paperPostcard"]').click();
+   assert(currentTemplate==='paperPostcard' && Number(paperTextureRange.value)>0,'paper postcard button selects textured template');
+   assert(document.getElementById('paperTextureStatus').textContent.includes('加载'),'paper load has visible status');
+   for(let i=0;i<40&&!paperSurface.previewImages[0]?.naturalWidth;i++)await pause(10);
+   const interim=document.createElement('canvas');interim.width=100;interim.height=100;interim.getContext('2d').fillStyle='#fff';interim.getContext('2d').fillRect(0,0,100,100);
+   const plain=interim.toDataURL();paperSurface.apply(interim,.7,'interim');
+   assert(!paperSurface.loaded && plain!==interim.toDataURL(),'temporary paper renders while full originals are delayed');
+   await paperSurface.ready;
+   assert(document.getElementById('paperTextureStatus').textContent==='','full paper completion clears loading status');
    const beforeSource=await(await fetch('dist/paper-surface-before.js')).text();
    const BeforePaper=new Function(beforeSource.replace('window.paperSurface = new PaperSurface();','return PaperSurface;'))();
    const before=new BeforePaper();await before.ready;await paperSurface.ready;

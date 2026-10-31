@@ -569,6 +569,7 @@ function applyTemplate(name) {
     return;
   }
   currentTemplate = name;
+  if (name === 'paperPostcard') loadPaperTexture();
   const isBrandWatermarkTemplate = name === "hasselblad" || name === "nikon";
   const isOverlayWatermarkTemplate = isOverlayTemplate(name);
   const params = getTemplateParams(name);
@@ -1934,7 +1935,28 @@ function applyPaperTexture(targetCanvas) {
   window.paperSurface.apply(targetCanvas, Number(paperTextureRange.value) / 100, identity);
 }
 
+function paperTextureStatus(message) {
+  let status = document.getElementById('paperTextureStatus');
+  if (!status) {
+    status = document.createElement('p');status.id = 'paperTextureStatus';status.setAttribute('role','status');
+    status.style.cssText = 'font-size:12px;color:var(--muted-text,#777);margin:6px 0 0';
+    paperTextureRange.closest('.panel-section').append(status);
+  }
+  status.textContent = message;
+}
+function loadPaperTexture() {
+  if (window.paperSurface.loaded) { paperTextureStatus(''); return; }
+  paperTextureStatus('正在加载完整纸纹，期间显示临时预览…');
+  void window.paperSurface.ready;
+}
+window.addEventListener('paper-surface-preview-ready', () => {
+  previewCache.clear();scheduleRenderPreview();
+});
+window.addEventListener('paper-surface-error', () => {
+  paperTextureStatus('完整纸纹加载失败，请重新点击纸纹明信片重试；导出需要完整纸纹。');
+});
 window.addEventListener('paper-surface-ready', () => {
+  paperTextureStatus('');
   previewCache.clear();
   scheduleRenderPreview();
 });

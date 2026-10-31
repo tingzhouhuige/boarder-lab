@@ -28,11 +28,21 @@ class PaperSurface {
     this.images = [];
     this.loading = null;
     this.loaded = false;
+    this.previewImages = [];
   }
 
   get ready() {
+    if (!this.previewImages.length) {
+      const preview = new Image();
+      preview.decoding = 'async';
+      preview.onload = () => window.dispatchEvent(new Event('paper-surface-preview-ready'));
+      preview.src = 'assets/paper-preview.jpg';
+      this.previewImages = [preview, preview];
+    }
     return this.loading ||= Promise.all(['assets/paper-cotton-surface.png', 'assets/paper-cotton-surface-2.png'].map((src) => {
       const image = new Image();
+      image.decoding = 'async';
+      image.fetchPriority = 'high';
       this.images.push(image);
       return new Promise((resolve) => {
         image.onload = () => resolve(true);
@@ -42,19 +52,19 @@ class PaperSurface {
     })).then((loaded) => {
       this.loaded = loaded.every(Boolean);
       if (this.loaded) window.dispatchEvent(new Event('paper-surface-ready'));
-      else { this.images = []; this.loading = null; }
+      else { this.images = []; this.loading = null; window.dispatchEvent(new Event('paper-surface-error')); }
       return this.loaded;
     });
   }
 
-  sheet(width, height, identity) {
+  sheet(width, height, identity, images = this.images) {
     const w = Math.round(1600 * width / Math.max(width, height));
     const h = Math.round(1600 * height / Math.max(width, height));
-    const key = `${w}:${h}:${identity}`;
+    const key = `${images === this.images ? 'full' : 'preview'}:${w}:${h}:${identity}`;
     if (this.cache.has(key)) return this.cache.get(key);
     let seed = 2166136261;
     for (const char of identity) seed = Math.imul(seed ^ char.charCodeAt(0), 16777619) >>> 0;
-    const image = this.images[seed % this.images.length];
+    const image = images[seed % images.length];
     const random = () => {
       seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
       return seed / 4294967296;
@@ -96,8 +106,9 @@ class PaperSurface {
 
   apply(canvas, strength, identity) {
     if (!strength) return;
-    if (!this.loaded) { void this.ready; return; }
-    if (!strength || this.images.some((image) => !image.complete || !image.naturalWidth)) return;
+    if (!this.loaded) void this.ready;
+    const images = this.loaded ? this.images : this.previewImages;
+    if (!images.length || images.some((image) => !image.complete || !image.naturalWidth)) return;
     const ctx = canvas.getContext('2d');
     const layer = document.createElement('canvas');
     layer.width = canvas.width;
@@ -105,7 +116,7 @@ class PaperSurface {
     const surface = layer.getContext('2d');
     surface.drawImage(canvas, 0, 0);
     surface.globalCompositeOperation = 'source-in';
-    surface.drawImage(this.sheet(canvas.width, canvas.height, identity), 0, 0, canvas.width, canvas.height);
+    surface.drawImage(this.sheet(canvas.width, canvas.height, identity, images), 0, 0, canvas.width, canvas.height);
     ctx.save();
     ctx.globalCompositeOperation = 'multiply';
     ctx.globalAlpha = Math.min(1, strength * 0.85);
@@ -1137,6 +1148,7 @@ function applyTemplate(name) {
     return;
   }
   currentTemplate = name;
+  if (name === 'paperPostcard') loadPaperTexture();
   const isBrandWatermarkTemplate = name === "hasselblad" || name === "nikon";
   const isOverlayWatermarkTemplate = isOverlayTemplate(name);
   const params = getTemplateParams(name);
@@ -2502,7 +2514,28 @@ function applyPaperTexture(targetCanvas) {
   window.paperSurface.apply(targetCanvas, Number(paperTextureRange.value) / 100, identity);
 }
 
+function paperTextureStatus(message) {
+  let status = document.getElementById('paperTextureStatus');
+  if (!status) {
+    status = document.createElement('p');status.id = 'paperTextureStatus';status.setAttribute('role','status');
+    status.style.cssText = 'font-size:12px;color:var(--muted-text,#777);margin:6px 0 0';
+    paperTextureRange.closest('.panel-section').append(status);
+  }
+  status.textContent = message;
+}
+function loadPaperTexture() {
+  if (window.paperSurface.loaded) { paperTextureStatus(''); return; }
+  paperTextureStatus('正在加载完整纸纹，期间显示临时预览…');
+  void window.paperSurface.ready;
+}
+window.addEventListener('paper-surface-preview-ready', () => {
+  previewCache.clear();scheduleRenderPreview();
+});
+window.addEventListener('paper-surface-error', () => {
+  paperTextureStatus('完整纸纹加载失败，请重新点击纸纹明信片重试；导出需要完整纸纹。');
+});
 window.addEventListener('paper-surface-ready', () => {
+  paperTextureStatus('');
   previewCache.clear();
   scheduleRenderPreview();
 });
