@@ -1,7 +1,7 @@
 (() => {
   if(window.borderLabDesktop)return;
   const storage=window.borderLabStorage;
-  let currentFolder=null,folderId='',entries=new Map(),worker=null,nextId=0;
+  let currentFolder=null,folderId='',entries=new Map(),worker=null,nextId=0,thumbnailGeneration=0;
   const pending=new Map();
   // Load before the click: waiting for IndexedDB can lose user activation.
   let rememberedFolder=null,knownFolders=[],rememberedPhoto=null;
@@ -16,6 +16,7 @@
     signal?.addEventListener('abort',abort,{once:true});Promise.resolve(task).then(value=>finish(resolve,value),error=>finish(reject,error));
   });
   const pauseThumbnails=async()=>{
+    thumbnailGeneration++;
     worker?.terminate();worker=null;
     for(const request of pending.values()){clearTimeout(request.timer);request.resolve(null);}
     pending.clear();
@@ -72,17 +73,53 @@
       storage.put('settings','lastPhoto',rememberedPhoto).catch(()=>{});
       return {files,canceled:false};
     };
-    platform.photoThumbnail=path=>new Promise(resolve=>{
-      const handle=entries.get(path);if(!handle){resolve(null);return;}
-      if(!worker){
-        worker=new Worker('web-thumbnail-worker.js?import-fix=1');
-        worker.onmessage=({data})=>{const request=pending.get(data.id);if(!request)return;clearTimeout(request.timer);pending.delete(data.id);request.resolve(data.url||null);};
-        worker.onerror=()=>pauseThumbnails();
-      }
-      const id=++nextId;
-      pending.set(id,{resolve,timer:setTimeout(pauseThumbnails,8000)});
-      worker.postMessage({id,handle,folderId});
-    });
+    const fallbackThumbnail=async(file,generation)=>{
+      if(generation!==thumbnailGeneration)return null;
+      const bitmap=await createImageBitmap(file,{resizeWidth:240,resizeQuality:'medium'});
+      try{
+        if(generation!==thumbnailGeneration)return null;
+        const canvas=document.createElement('canvas');canvas.width=bitmap.width;canvas.height=bitmap.height;
+        canvas.getContext('2d').drawImage(bitmap,0,0);
+        return canvas.toDataURL('image/jpeg',.7);
+      }finally{bitmap.close();}
+    };
+    platform.photoThumbnail=async path=>{
+      const handle=entries.get(path);if(!handle)return null;
+      const generation=thumbnailGeneration;
+      try{
+        // File-system permission belongs to the window. Transfer a File, not a
+        // handle that may be unable to request/read permission inside a worker.
+        const file=await bounded(handle.getFile(),undefined,8000);
+        if(generation!==thumbnailGeneration)return null;
+        let url;
+        try{
+          url=await new Promise((resolve,reject)=>{
+            if(!worker){
+              worker=new Worker('web-thumbnail-worker.js?thumbnail-fix=2');
+              worker.onmessage=({data})=>{
+                const request=pending.get(data.id);if(!request)return;
+                clearTimeout(request.timer);pending.delete(data.id);
+                if(data.error)request.reject(Error(data.error));else request.resolve(data.url||null);
+              };
+              worker.onerror=worker.onmessageerror=()=>{
+                worker?.terminate();worker=null;
+                for(const request of pending.values()){clearTimeout(request.timer);request.reject(Error('缩略图后台线程不可用'));}
+                pending.clear();
+              };
+            }
+            const id=++nextId;
+            const timer=setTimeout(()=>worker?.onerror?.(),8000);
+            pending.set(id,{resolve,reject,timer});
+            try{worker.postMessage({id,file,folderId});}catch(error){clearTimeout(timer);pending.delete(id);reject(error);}
+          });
+        }catch(error){
+          if(generation!==thumbnailGeneration)return null;
+          console.warn('后台缩略图失败，改用浏览器解码',error);
+          url=await fallbackThumbnail(file,generation);
+        }
+        return generation===thumbnailGeneration?url:null;
+      }catch(error){console.warn('无法读取缩略图',path,error);return null;}
+    };
   }
   window.borderLabDesktop=platform;
   const button=document.createElement('button');

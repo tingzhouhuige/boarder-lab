@@ -36,6 +36,23 @@ app.whenReady().then(async()=>{
    await handleFiles(desktopPhotosToFiles(chosen));assert(photoItems.length===1,'web import into editor');
    await editHistory.undo();assert(photoItems.length===0,'web undo import');await editHistory.redo();assert(photoItems.length===1,'web redo import');
    const remembered=await borderLabDesktop.browsePhotos(false);assert(remembered.lastFile===result.files[0].path,'last photo persisted');
+   await borderLabDesktop.pauseThumbnails();
+   const OriginalWorker=window.Worker;
+   try{
+    window.Worker=class{constructor(){throw Error('simulated worker failure')}};
+    const fallback=await borderLabDesktop.photoThumbnail(result.files[0].path);
+    assert(fallback?.startsWith('data:image/jpeg'),'browser decoding fallback when worker cannot start');
+   }finally{window.Worker=OriginalWorker;}
+   const picking=openRememberingPhotoPicker();
+   let displayed=false;
+   for(let i=0;i<100;i++){
+    await pause(50);
+    const image=document.querySelector('.remember-photo-grid img');
+    if(image?.complete && image.naturalWidth>0){displayed=true;break;}
+   }
+   assert(displayed,'thumbnail actually visible in photo picker');
+   assert(document.querySelector('.remember-photo-grid button').getAttribute('aria-pressed')==='false','remembered thumbnail is not automatically selected');
+   document.querySelector('.remember-photo-picker [data-cancel]').click();await picking;
    await borderLabDesktop.saveWatermark(first,'mark.jpg');assert((await borderLabDesktop.loadWatermark()).fileName==='mark.jpg','watermark persistence');
    assert(document.getElementById('appVersion').textContent==='v2.1.0','web version');
    assert(document.querySelector('.web-fullscreen-toggle'),'web fullscreen control');
