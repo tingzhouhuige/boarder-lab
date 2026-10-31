@@ -1,19 +1,24 @@
 (() => {
   if(window.borderLabDesktop)return;
   const storage=window.borderLabStorage;
-  let currentFolder=null,folderId='',entries=new Map(),worker=null,nextId=0,thumbnailGeneration=0;
+  let currentDirectory='',folderId='',entries=new Map(),worker=null,nextId=0,thumbnailGeneration=0;
   const pending=new Map();
-  // Load before the click: waiting for IndexedDB can lose user activation.
-  let rememberedFolder=null,knownFolders=[],rememberedPhoto=null;
-  storage.get('settings','lastFolder').then(value=>{rememberedFolder ||= value;}).catch(()=>{});
-  storage.all('folders').then(value=>{knownFolders=value;}).catch(()=>{});
+  let rememberedPhoto=null;
   storage.get('settings','lastPhoto').then(value=>{rememberedPhoto ||= value;}).catch(()=>{});
-  const bounded=(task,signal,ms=15000)=>new Promise((resolve,reject)=>{
-    const abort=()=>finish(reject,new DOMException('已取消读取','AbortError'));
-    const timer=setTimeout(()=>finish(reject,Error('读取超时，请重试或更换文件夹')),ms);
-    const finish=(done,value)=>{clearTimeout(timer);signal?.removeEventListener('abort',abort);done(value);};
+  const pickFiles=(directory,signal)=>new Promise((resolve,reject)=>{
+    const input=document.createElement('input');input.type='file';input.multiple=true;input.hidden=true;
+    input.dataset.webPhotoInput=directory?'folder':'files';
+    if(directory)input.webkitdirectory=true;else input.accept='.jpg,.jpeg,.png,.webp';
+    // Inputs outside a modal are inert. Keep the native input inside this dialog.
+    (document.querySelector('.remember-photo-picker[open]')||document.body).append(input);
+    let settled=false;
+    const finish=value=>{if(settled)return;settled=true;input.remove();signal?.removeEventListener('abort',abort);resolve(value);};
+    const abort=()=>finish(null);
+    input.addEventListener('change',()=>finish(Array.from(input.files||[])),{once:true});
+    input.addEventListener('cancel',abort,{once:true});
     if(signal?.aborted){abort();return;}
-    signal?.addEventListener('abort',abort,{once:true});Promise.resolve(task).then(value=>finish(resolve,value),error=>finish(reject,error));
+    signal?.addEventListener('abort',abort,{once:true});
+    try{input.click();}catch(error){input.remove();signal?.removeEventListener('abort',abort);reject(error);}
   });
   const pauseThumbnails=async()=>{
     thumbnailGeneration++;
@@ -27,48 +32,34 @@
     saveWatermark:async(data,fileName)=>{await storage.put('settings','watermark',{data,fileName});},
     loadWatermark:async()=>await storage.get('settings','watermark')||{},
   };
-  if('showDirectoryPicker' in window && 'Worker' in window && 'OffscreenCanvas' in window){
+  if('webkitdirectory' in document.createElement('input')){
+    platform.choosePhotoFiles=async({signal}={})=>{
+      const files=await pickFiles(false,signal);return files?.length?{files,canceled:false}:{canceled:true};
+    };
     platform.browsePhotos=async(change=false,{signal,onProgress}={})=>{
       try{
-        let handle=currentFolder||rememberedFolder?.handle;
-        if(change){handle=await window.showDirectoryPicker({id:'border-lab-import-folder',mode:'read'});}
-        else{
-          if(handle){
-            if(await bounded(handle.requestPermission({mode:'read'}),signal,60000)!=='granted')handle=null;
-          }
-          if(!handle)handle=await window.showDirectoryPicker({id:'border-lab-import-folder',mode:'read'});
-        }
+        const listing=()=>({files:[...entries].map(([path,file])=>({path,name:file.name})).sort((a,b)=>a.name.localeCompare(b.name,'zh-CN',{numeric:true})),directory:currentDirectory,lastFile:rememberedPhoto});
+        if(!change)return currentDirectory?listing():{needsFolder:true};
+        // Use the browser's file input instead of a saved permission/handle prompt.
+        const picked=await pickFiles(true,signal);
+        if(!picked?.length || signal?.aborted)return {canceled:true};
         await pauseThumbnails();
-        if(signal?.aborted)return {canceled:true};
-        onProgress?.(0,0);
-        let record;
-        for(const saved of [rememberedFolder,...knownFolders].filter(Boolean)){
-          if(await bounded(handle.isSameEntry(saved.handle).catch(()=>false),signal)){record=saved;break;}
+        const directory=picked[0].webkitRelativePath.split('/')[0]||'所选照片';
+        const id=`input:${encodeURIComponent(directory)}`,next=new Map();let lastYield=performance.now();
+        for(let index=0;index<picked.length;index++){
+          const file=picked[index],relative=file.webkitRelativePath||file.name;
+          // Keep the same non-recursive folder view as the desktop picker.
+          if(relative.split('/').length<=2 && /\.(jpe?g|png|webp)$/i.test(file.name))next.set(`${id}/${relative}`,file);
+          if(performance.now()-lastYield>12){onProgress?.(next.size,index+1);await new Promise(r=>setTimeout(r,0));lastYield=performance.now();}
+          if(signal?.aborted)return {canceled:true};
         }
-        record ||= {id:crypto.randomUUID(),handle};
-        rememberedFolder=record;
-        // Persistence must never hold up listing the user's files.
-        storage.put('folders',record.id,record).catch(()=>{});
-        storage.put('settings','lastFolder',record).catch(()=>{});
-        const next=new Map();
-        const iterator=handle.values();let scanned=0,lastYield=performance.now();
-        while(true){
-          const step=await bounded(iterator.next(),signal);if(step.done)break;
-          const entry=step.value;
-          if(entry.kind==='file' && /\.(jpe?g|png|webp)$/i.test(entry.name))next.set(`${record.id}/${entry.name}`,entry);
-          scanned++;
-          if(performance.now()-lastYield>12){onProgress?.(next.size,scanned);await new Promise(r=>setTimeout(r,0));lastYield=performance.now();}
-        }
-        if(signal?.aborted)throw new DOMException('已取消读取','AbortError');
-        currentFolder=handle;folderId=record.id;entries=next;
-        const collator=new Intl.Collator('zh-CN',{numeric:true});
-        const files=[...entries].map(([path,entry])=>({path,name:entry.name})).sort((a,b)=>collator.compare(a.name,b.name));
-        return {files,directory:handle.name,lastFile:rememberedPhoto};
+        currentDirectory=directory;folderId=id;entries=next;
+        return listing();
       }catch(error){if(error.name==='AbortError')return {canceled:true};throw error;}
     };
     platform.choosePhotos=async paths=>{
       const files=[];
-      for(const path of paths){if(!entries.has(path))throw Error('请重新选择照片文件夹');files.push(await entries.get(path).getFile());}
+      for(const path of paths){if(!entries.has(path))throw Error('请重新选择照片文件夹');files.push(entries.get(path));}
       rememberedPhoto=paths.at(-1);
       storage.put('settings','lastPhoto',rememberedPhoto).catch(()=>{});
       return {files,canceled:false};
@@ -84,12 +75,9 @@
       }finally{bitmap.close();}
     };
     platform.photoThumbnail=async path=>{
-      const handle=entries.get(path);if(!handle)return null;
+      const file=entries.get(path);if(!file)return null;
       const generation=thumbnailGeneration;
       try{
-        // File-system permission belongs to the window. Transfer a File, not a
-        // handle that may be unable to request/read permission inside a worker.
-        const file=await bounded(handle.getFile(),undefined,8000);
         if(generation!==thumbnailGeneration)return null;
         let url;
         try{

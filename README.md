@@ -13,7 +13,7 @@
 - 当前可见照片优先加载，滚动时暂停图片加载，空闲时后台预读并缓存缩略图。
 - 桌面版使用独立缩略图进程和磁盘缓存；网页版使用 Web Worker 和 IndexedDB，本地处理照片。
 - 新增全屏按钮、自动版本号和底部按钮留白。
-- 网页版完整文件夹体验建议使用桌面 Chrome / Edge；其他浏览器保留普通照片导入。文件夹可能需要重新授权，清理网站数据会清除缓存。
+- 网页版使用“选择文件夹”或“直接选择照片”导入，不再等待旧文件夹权限。当前标签页内再次导入可继续浏览已选文件夹；刷新后需重新选择文件夹，缩略图缓存和上次照片标记仍可复用。清理网站数据会清除缓存。
 - 网页版：[在线使用](https://tingzhouhuige.github.io/boarder-lab/)。Windows 程序见 [v2.1.0 Release](https://github.com/tingzhouhuige/boarder-lab/releases/tag/v2.1.0)。
 
 详细说明见 [RELEASE_NOTES_v2.1.0.md](RELEASE_NOTES_v2.1.0.md)。

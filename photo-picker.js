@@ -22,6 +22,21 @@
     const status = modal.querySelector("[data-status]");
     const confirm = modal.querySelector("[data-import]");
     const folder = modal.querySelector("[data-folder]");
+    if(window.borderLabDesktop.choosePhotoFiles){
+      folder.textContent='选择文件夹';
+      const direct=document.createElement('button');direct.type='button';direct.dataset.directPhotos='';direct.textContent='直接选择照片';
+      folder.before(direct);
+      direct.onclick=async()=>{
+        if(busy)return;
+        busy=true;loadController=new AbortController();confirm.disabled=true;folder.disabled=true;direct.disabled=true;pauseLoads();
+        try{
+          const chosen=await window.borderLabDesktop.choosePhotoFiles({signal:loadController.signal});
+          if(!modal.isConnected)return;
+          if(!chosen.canceled)close(chosen);
+        }catch(error){status.textContent=`选择失败：${error.message}`;}
+        finally{loadController=null;busy=false;folder.disabled=false;direct.disabled=false;confirm.disabled=!selected.size;pumpThumbnails();}
+      };
+    }
     const selected = new Set();
     let anchor = null;
     let files = [], busy = false, observer, lastFile, renderWindow = () => {}, loadController;
@@ -184,16 +199,18 @@
       pauseLoads();
       visibleImages.clear(); observer?.disconnect();
       loadController = new AbortController();
-      status.textContent = "等待选择或授权文件夹…";
+      status.textContent = window.borderLabDesktop.choosePhotoFiles ? "请在系统窗口中选择文件夹；也可取消后直接选择照片。" : "正在读取文件夹…";
       try {
         const data = await window.borderLabDesktop.browsePhotos(changeFolder, {
           signal: loadController.signal,
           onProgress: (count, scanned) => { if(modal.isConnected)status.textContent = `正在读取文件夹：已检查 ${scanned} 个文件，找到 ${count} 张照片…`; }
         });
         if (!modal.isConnected) return;
+        if (data.needsFolder) { status.textContent="点击“选择文件夹”浏览照片，或点击“直接选择照片”导入。"; return; }
         if (data.canceled) { if (!files.length) close({ canceled: true }); else { windowStart = -1; renderWindow(); } return; }
         observer?.disconnect(); visibleImages.clear(); previewCache.clear(); warmed.clear(); folderGeneration++; selected.clear(); anchor = null; files = data.files;
         modal.querySelector("[data-path]").textContent = data.directory;
+        folder.textContent='更换文件夹';
         lastFile = data.lastFile;
         cards.clear(); surface.replaceChildren(); lastWidth = 0;
         renderWindow = () => {
