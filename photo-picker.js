@@ -24,7 +24,7 @@
     const folder = modal.querySelector("[data-folder]");
     const selected = new Set();
     let anchor = null;
-    let files = [], busy = false, observer, lastFile, renderWindow = () => {};
+    let files = [], busy = false, observer, lastFile, renderWindow = () => {}, loadController;
     let windowStart = -1, windowEnd = -1;
     let scrolling = false, pointerHeld = false, idleTimer, frame = 0, lastWidth = 0;
     const settle = () => {
@@ -183,9 +183,14 @@
       busy = true; folder.disabled = true; confirm.disabled = true;
       pauseLoads();
       visibleImages.clear(); observer?.disconnect();
-      status.textContent = "正在读取文件夹…";
+      loadController = new AbortController();
+      status.textContent = "等待选择或授权文件夹…";
       try {
-        const data = await window.borderLabDesktop.browsePhotos(changeFolder);
+        const data = await window.borderLabDesktop.browsePhotos(changeFolder, {
+          signal: loadController.signal,
+          onProgress: (count, scanned) => { if(modal.isConnected)status.textContent = `正在读取文件夹：已检查 ${scanned} 个文件，找到 ${count} 张照片…`; }
+        });
+        if (!modal.isConnected) return;
         if (data.canceled) { if (!files.length) close({ canceled: true }); else { windowStart = -1; renderWindow(); } return; }
         observer?.disconnect(); visibleImages.clear(); previewCache.clear(); warmed.clear(); folderGeneration++; selected.clear(); anchor = null; files = data.files;
         modal.querySelector("[data-path]").textContent = data.directory;
@@ -250,11 +255,12 @@
         warmCursor=Math.max(0,rememberedIndex);
         if (rememberedIndex >= 0) showIndex(rememberedIndex);
       } catch (error) { status.textContent = `读取失败：${error.message}。请更换文件夹重试。`; return; }
-      finally { busy = false; folder.disabled = false; confirm.disabled = !selected.size; pumpThumbnails(); }
+      finally { loadController = null; busy = false; folder.disabled = false; confirm.disabled = !selected.size; pumpThumbnails(); }
       if (files.length) update();
     };
-    modal.addEventListener("cancel", event => { event.preventDefault(); if (!busy) close({ canceled: true }); });
-    modal.querySelector("[data-cancel]").onclick = () => { if (!busy) close({ canceled: true }); };
+    const cancel = () => { if (loadController) { loadController.abort(); close({ canceled: true }); } else if (!busy) close({ canceled: true }); };
+    modal.addEventListener("cancel", event => { event.preventDefault(); cancel(); });
+    modal.querySelector("[data-cancel]").onclick = cancel;
     folder.onclick = () => load(true); confirm.onclick = commit;
     modal.showModal();
     await load(false);

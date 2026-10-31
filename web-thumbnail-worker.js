@@ -1,4 +1,4 @@
-importScripts('web-storage.js');
+importScripts('web-storage.js?import-fix=1');
 self.onmessage=async({data:{id,handle,folderId}})=>{
   try{
     const file=await handle.getFile();
