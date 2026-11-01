@@ -111,7 +111,9 @@ function createWindow() {
       event.preventDefault(); win.setFullScreen(false);
     }
   });
-  win.loadFile("index.html");
+  // Resolve against this file so the window loads correctly regardless of the
+  // process working directory or which script started the app.
+  win.loadFile(path.join(__dirname, "index.html"));
 }
 
 ipcMain.handle("border-lab:open-photo", async (event) => {

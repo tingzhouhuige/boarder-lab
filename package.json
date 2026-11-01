@@ -5,17 +5,18 @@
   "description": "Photo border and EXIF annotation tool for desktop and browser.",
   "main": "main.js",
   "author": "Xiaohui",
-  "license": "UNLICENSED",
+  "license": "GPL-3.0-or-later",
   "scripts": {
-    "build:web": "node sync-version.cjs",
-    "prestart": "node sync-version.cjs",
-    "predist": "node sync-version.cjs",
-    "predist:latest": "node sync-version.cjs",
-    "predist:installer": "node sync-version.cjs",
+    "build:web": "node tools/sync-version.cjs",
+    "prestart": "node tools/sync-version.cjs",
+    "predist": "node tools/sync-version.cjs",
+    "predist:latest": "node tools/sync-version.cjs",
+    "predist:installer": "node tools/sync-version.cjs",
     "start": "electron .",
     "dist": "electron-builder --win portable",
-    "dist:latest": "node build-latest.cjs",
-    "dist:installer": "electron-builder --win nsis"
+    "dist:latest": "node tools/build-latest.cjs",
+    "dist:installer": "electron-builder --win nsis",
+    "check:syntax": "node tools/syntax-check.cjs"
   },
   "devDependencies": {
     "electron": "^36.2.0",
@@ -68,6 +69,6 @@
       "oneClick": false,
       "allowToChangeInstallationDirectory": true
     },
-    "afterPack": "./icon-after-pack.cjs"
+    "afterPack": "tools/icon-after-pack.cjs"
   }
 }

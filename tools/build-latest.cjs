@@ -4,7 +4,7 @@ const { spawnSync } = require("child_process");
 const fs = require("fs");
 const path = require("path");
 
-const root = __dirname;
+const root = path.join(__dirname, '..');
 const pkg = JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8"));
 const distDir = path.join(root, "dist");
 const builderCli = path.join(root, "node_modules", "electron-builder", "out", "cli", "cli.js");

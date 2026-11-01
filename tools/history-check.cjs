@@ -1,10 +1,10 @@
 const {app,BrowserWindow}=require('electron');
 const path=require('path');const fs=require('fs');
-app.setPath('userData',path.join(__dirname,'dist','history-check-profile'));
+app.setPath('userData',path.join(__dirname,'..','dist','history-check-profile'));
 app.whenReady().then(async()=>{
  const win=new BrowserWindow({show:false,width:1400,height:900,webPreferences:{backgroundThrottling:false}});
  try{
-  await win.loadFile('index.html');win.showInactive();
+  await win.loadFile(__dirname+'/../index.html');win.showInactive();
   const result=await win.webContents.executeJavaScript(`(async()=>{
     const checks=[];const assert=(value,label)=>{if(!value)throw Error(label);checks.push(label)};
     const flush=()=>new Promise(r=>setTimeout(r,0));
@@ -64,6 +64,6 @@ app.whenReady().then(async()=>{
     await editHistory.redo();assert(watermarkFileName.textContent==='mark.jpg','redo watermark upload');
     return checks;
   })()`);
-  fs.writeFileSync(path.join(__dirname,'dist','history-check-result.json'),JSON.stringify(result,null,2));app.exit(0);
- }catch(error){fs.writeFileSync(path.join(__dirname,'dist','history-check-result.json'),String(error));app.exit(1)}
+  fs.writeFileSync(path.join(__dirname,'..','dist','history-check-result.json'),JSON.stringify(result,null,2));app.exit(0);
+ }catch(error){fs.writeFileSync(path.join(__dirname,'..','dist','history-check-result.json'),String(error));app.exit(1)}
 });

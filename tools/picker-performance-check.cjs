@@ -1,15 +1,15 @@
 const { app, BrowserWindow, dialog } = require('electron');
 const path = require('path');
 const fs = require('fs');
-const profile = path.join(__dirname, 'dist', 'picker-performance-profile');
+const profile = path.join(__dirname, '..', 'dist', 'picker-performance-profile');
 const fixture = path.join(profile, 'photos');
 fs.mkdirSync(fixture, {recursive:true});
-fs.copyFileSync(path.join(__dirname, 'assets', 'template-classic.jpg'), path.join(fixture, 'test.jpg'));
+fs.copyFileSync(path.join(__dirname,'..','assets', 'template-classic.jpg'), path.join(fixture, 'test.jpg'));
 fs.writeFileSync(path.join(profile, 'preferences.json'), JSON.stringify({photoBrowserDir:fixture}));
 app.setPath('userData', profile);
 app.disableHardwareAcceleration();
 dialog.showOpenDialog = async () => ({canceled:false, filePaths:[fixture]});
-require('./main.js');
+require('../main.js');
 app.whenReady().then(async () => {
   try {
     const win = BrowserWindow.getAllWindows()[0];
@@ -22,7 +22,7 @@ app.whenReady().then(async () => {
       return {thumbnailBytes:first.length, data:first};
     })()`);
     const testWin = new BrowserWindow({show:false,width:1400,height:900,webPreferences:{backgroundThrottling:false}});
-    await testWin.loadFile('index.html');
+    await testWin.loadFile(__dirname+'/../index.html');
     // Real paint scheduling must be tested on a visible surface: Chromium may
     // suspend modal timers in hidden windows even with background throttling off.
     testWin.showInactive();
@@ -110,7 +110,7 @@ app.whenReady().then(async () => {
       document.querySelector('[data-cancel]').click();await pending;
       return {pass:true,virtualListPhotos:10000,mountedCards:mounted,peakThumbnailJobs:peak,totalRequests:requests,scrollHeartbeatTicks:ticks,requestsDuringDrag:0,domMutationsDuringDrag:dragMutations,backgroundWarmed};
     })(),new Promise((_,reject)=>setTimeout(()=>reject(Error('Timed out at '+window.testStage)),30000))])`);
-    fs.writeFileSync(path.join(__dirname,'dist','picker-performance-result.json'),JSON.stringify({backend,result},null,2));
+    fs.writeFileSync(path.join(__dirname,'..','dist','picker-performance-result.json'),JSON.stringify({backend,result},null,2));
     app.exit(0);
-  } catch(error) {fs.writeFileSync(path.join(__dirname,'dist','picker-performance-result.json'),String(error));app.exit(1)}
+  } catch(error) {fs.writeFileSync(path.join(__dirname,'..','dist','picker-performance-result.json'),String(error));app.exit(1)}
 });

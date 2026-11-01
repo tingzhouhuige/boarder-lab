@@ -1,6 +1,6 @@
 const {app,BrowserWindow}=require('electron');
 const http=require('http'),fs=require('fs'),path=require('path');
-const root=__dirname;
+const root=path.join(__dirname,'..');
 const childProcess=require('node:child_process');
 fs.mkdirSync(path.join(root,'dist'),{recursive:true});
 fs.writeFileSync(path.join(root,'dist','paper-surface-before.js'),childProcess.execFileSync('git',['show','53d5954:paper-surface.js'],{cwd:fs.existsSync(path.join(root,'.git'))?root:path.join(root,'../publish-boarder-lab')}));

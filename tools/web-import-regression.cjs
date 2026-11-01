@@ -9,7 +9,7 @@ function platform(storage,folder){
     Worker:class{},OffscreenCanvas:class{}};
   context.window=context;context.borderLabStorage=storage;
   context.showDirectoryPicker=()=>{calls++;return Promise.resolve(folder)};
-  vm.runInNewContext(fs.readFileSync(__dirname+'/web-platform.js','utf8'),context);
+  vm.runInNewContext(fs.readFileSync(__dirname+'/../web-platform.js','utf8'),context);
   return {api:context.borderLabDesktop,calls:()=>calls};
 }
 (async()=>{
@@ -29,7 +29,7 @@ function platform(storage,folder){
   const broken=platform(blocked,{name:'denied',values:()=>({next:()=>Promise.reject(Error('disk unavailable'))})});
   await assert.rejects(broken.api.browsePhotos(true),/disk unavailable/);checks.push('directory errors propagate instead of hanging');
   const context={self:{},indexedDB:{open:()=>({})},setTimeout,clearTimeout,Error};
-  vm.runInNewContext(fs.readFileSync(__dirname+'/web-storage.js','utf8'),context);
+  vm.runInNewContext(fs.readFileSync(__dirname+'/../web-storage.js','utf8'),context);
   await assert.rejects(context.self.borderLabStorage.get('settings','lastFolder'),/超时/);checks.push('unresponsive IndexedDB has bounded wait');
   console.log(checks.join('\n'));
 })().catch(error=>{console.error(error);process.exitCode=1});

@@ -1,8 +1,8 @@
 const {app,BrowserWindow}=require('electron');
 const fs=require('fs');
 const path=require('path');
-app.setPath('userData',path.join(__dirname,'dist','fullscreen-check-profile'));
-require('./main.js');
+app.setPath('userData',path.join(__dirname,'..','dist','fullscreen-check-profile'));
+require('../main.js');
 app.whenReady().then(async()=>{
   try {
     const win=BrowserWindow.getAllWindows()[0];
@@ -18,6 +18,6 @@ app.whenReady().then(async()=>{
     await toggle();await wait();
     win.webContents.sendInputEvent({type:'keyDown',keyCode:'Escape'});await wait();
     if(win.isFullScreen())throw Error('Escape did not exit fullscreen');
-    fs.writeFileSync(path.join(__dirname,'dist','fullscreen-check-result.txt'),'PASS: button enter/exit, state synchronization, Escape exit');app.exit(0);
-  }catch(error){fs.writeFileSync(path.join(__dirname,'dist','fullscreen-check-result.txt'),String(error));app.exit(1)}
+    fs.writeFileSync(path.join(__dirname,'..','dist','fullscreen-check-result.txt'),'PASS: button enter/exit, state synchronization, Escape exit');app.exit(0);
+  }catch(error){fs.writeFileSync(path.join(__dirname,'..','dist','fullscreen-check-result.txt'),String(error));app.exit(1)}
 });

@@ -1,8 +1,9 @@
 const fs = require('fs');
 const path = require('path');
 const assert = require('assert');
-const {createThumbnailService} = require('./thumbnail-service.cjs');
-const helper = path.join(__dirname,'dist','blocked-thumbnail-fixture.cjs');
+const {createThumbnailService} = require('../thumbnail-service.cjs');
+const helper = path.join(__dirname,'..','dist','blocked-thumbnail-fixture.cjs');
+fs.mkdirSync(path.dirname(helper), { recursive: true });
 fs.writeFileSync(helper, "process.on('message',()=>{const end=Date.now()+10000;while(Date.now()<end){};process.send({id:1,data:'late'})});");
 (async()=>{
   const service=createThumbnailService(process.execPath,helper,300);
