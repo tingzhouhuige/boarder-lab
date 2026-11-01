@@ -32,6 +32,8 @@ class PaperSurface {
   }
 
   get ready() {
+    const sizes=[3275314,3163033],received=[0,0];
+    const report=()=>window.dispatchEvent(new CustomEvent('paper-surface-progress',{detail:Math.min(99,Math.floor(received.reduce((a,b)=>a+b,0)/sizes.reduce((a,b)=>a+b,0)*100))}));
     if (!this.previewImages.length) {
       const preview = new Image();
       preview.decoding = 'async';
@@ -39,15 +41,31 @@ class PaperSurface {
       preview.src = 'assets/paper-preview.jpg';
       this.previewImages = [preview, preview];
     }
-    return this.loading ||= Promise.all(['assets/paper-cotton-surface.png', 'assets/paper-cotton-surface-2.png'].map((src) => {
+    return this.loading ||= Promise.all(['assets/paper-cotton-surface.png', 'assets/paper-cotton-surface-2.png'].map((src,index) => {
       const image = new Image();
       image.decoding = 'async';
       image.fetchPriority = 'high';
       this.images.push(image);
-      return new Promise((resolve) => {
-        image.onload = () => resolve(true);
-        image.onerror = () => resolve(false);
-        image.src = src;
+      return new Promise(async(resolve) => {
+        let objectUrl;
+        try {
+        image.onload = () => {if(objectUrl)URL.revokeObjectURL(objectUrl);resolve(true);};
+        image.onerror = () => {if(objectUrl)URL.revokeObjectURL(objectUrl);resolve(false);};
+        if(location.protocol==='file:'){image.src=src;return;}
+        const cache=window.caches?await caches.open('border-lab-paper-originals-v1').catch(()=>null):null;
+        const cached=await cache?.match(src).catch(()=>null);
+        if(cached){received[index]=sizes[index];report();objectUrl=URL.createObjectURL(await cached.blob());image.src=objectUrl;return;}
+        const request=new XMLHttpRequest();request.open('GET',src);request.responseType='blob';request.timeout=180000;
+        request.onprogress=event=>{received[index]=event.loaded;if(event.lengthComputable)sizes[index]=event.total;report();};
+        request.onerror=request.ontimeout=()=>resolve(false);
+        request.onload=()=>{
+          if(request.status!==200){resolve(false);return;}
+          received[index]=sizes[index];report();
+          if(cache)cache.put(src,new Response(request.response)).catch(()=>{});
+          objectUrl=URL.createObjectURL(request.response);image.src=objectUrl;
+        };
+        request.send();
+        } catch { resolve(false); }
       });
     })).then((loaded) => {
       this.loaded = loaded.every(Boolean);
@@ -2518,11 +2536,17 @@ function paperTextureStatus(message) {
   let status = document.getElementById('paperTextureStatus');
   if (!status) {
     status = document.createElement('p');status.id = 'paperTextureStatus';status.setAttribute('role','status');
-    status.style.cssText = 'font-size:12px;color:var(--muted-text,#777);margin:6px 0 0';
+    status.style.cssText = 'font-size:14px;font-weight:600;color:var(--photo-picker-foreground,#333);background:rgba(128,128,128,.13);border:1px solid #8885;border-radius:8px;padding:12px;margin:10px 0 0';
     paperTextureRange.closest('.panel-section').append(status);
   }
   status.textContent = message;
+  status.hidden = !message;
 }
+window.addEventListener('paper-surface-progress',event=>{
+  paperTextureStatus(`完整纸纹正在加载：${event.detail}%（暂显示预览纸纹）`);
+  const bar=document.createElement('progress');bar.max=100;bar.value=event.detail;bar.style.cssText='display:block;width:100%;height:12px;margin-top:10px;accent-color:#888';
+  document.getElementById('paperTextureStatus').append(bar);
+});
 function loadPaperTexture() {
   if (window.paperSurface.loaded) { paperTextureStatus(''); return; }
   paperTextureStatus('正在加载完整纸纹，期间显示临时预览…');

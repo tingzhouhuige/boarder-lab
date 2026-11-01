@@ -1939,11 +1939,17 @@ function paperTextureStatus(message) {
   let status = document.getElementById('paperTextureStatus');
   if (!status) {
     status = document.createElement('p');status.id = 'paperTextureStatus';status.setAttribute('role','status');
-    status.style.cssText = 'font-size:12px;color:var(--muted-text,#777);margin:6px 0 0';
+    status.style.cssText = 'font-size:14px;font-weight:600;color:var(--photo-picker-foreground,#333);background:rgba(128,128,128,.13);border:1px solid #8885;border-radius:8px;padding:12px;margin:10px 0 0';
     paperTextureRange.closest('.panel-section').append(status);
   }
   status.textContent = message;
+  status.hidden = !message;
 }
+window.addEventListener('paper-surface-progress',event=>{
+  paperTextureStatus(`完整纸纹正在加载：${event.detail}%（暂显示预览纸纹）`);
+  const bar=document.createElement('progress');bar.max=100;bar.value=event.detail;bar.style.cssText='display:block;width:100%;height:12px;margin-top:10px;accent-color:#888';
+  document.getElementById('paperTextureStatus').append(bar);
+});
 function loadPaperTexture() {
   if (window.paperSurface.loaded) { paperTextureStatus(''); return; }
   paperTextureStatus('正在加载完整纸纹，期间显示临时预览…');

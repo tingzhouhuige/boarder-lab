@@ -9,6 +9,8 @@ class PaperSurface {
   }
 
   get ready() {
+    const sizes=[3275314,3163033],received=[0,0];
+    const report=()=>window.dispatchEvent(new CustomEvent('paper-surface-progress',{detail:Math.min(99,Math.floor(received.reduce((a,b)=>a+b,0)/sizes.reduce((a,b)=>a+b,0)*100))}));
     if (!this.previewImages.length) {
       const preview = new Image();
       preview.decoding = 'async';
@@ -16,15 +18,31 @@ class PaperSurface {
       preview.src = 'assets/paper-preview.jpg';
       this.previewImages = [preview, preview];
     }
-    return this.loading ||= Promise.all(['assets/paper-cotton-surface.png', 'assets/paper-cotton-surface-2.png'].map((src) => {
+    return this.loading ||= Promise.all(['assets/paper-cotton-surface.png', 'assets/paper-cotton-surface-2.png'].map((src,index) => {
       const image = new Image();
       image.decoding = 'async';
       image.fetchPriority = 'high';
       this.images.push(image);
-      return new Promise((resolve) => {
-        image.onload = () => resolve(true);
-        image.onerror = () => resolve(false);
-        image.src = src;
+      return new Promise(async(resolve) => {
+        let objectUrl;
+        try {
+        image.onload = () => {if(objectUrl)URL.revokeObjectURL(objectUrl);resolve(true);};
+        image.onerror = () => {if(objectUrl)URL.revokeObjectURL(objectUrl);resolve(false);};
+        if(location.protocol==='file:'){image.src=src;return;}
+        const cache=window.caches?await caches.open('border-lab-paper-originals-v1').catch(()=>null):null;
+        const cached=await cache?.match(src).catch(()=>null);
+        if(cached){received[index]=sizes[index];report();objectUrl=URL.createObjectURL(await cached.blob());image.src=objectUrl;return;}
+        const request=new XMLHttpRequest();request.open('GET',src);request.responseType='blob';request.timeout=180000;
+        request.onprogress=event=>{received[index]=event.loaded;if(event.lengthComputable)sizes[index]=event.total;report();};
+        request.onerror=request.ontimeout=()=>resolve(false);
+        request.onload=()=>{
+          if(request.status!==200){resolve(false);return;}
+          received[index]=sizes[index];report();
+          if(cache)cache.put(src,new Response(request.response)).catch(()=>{});
+          objectUrl=URL.createObjectURL(request.response);image.src=objectUrl;
+        };
+        request.send();
+        } catch { resolve(false); }
       });
     })).then((loaded) => {
       this.loaded = loaded.every(Boolean);
