@@ -12,7 +12,7 @@
     modal.innerHTML = `<header><strong>导入照片</strong><button type="button" data-folder>更换文件夹</button></header>
       <p data-path></p><p data-status role="status"></p>
       <div class="remember-photo-grid" role="group" aria-label="照片列表"></div>
-      <footer><span>单击单选 · Ctrl 多选 · Shift 连选 · 双击导入</span><button type="button" data-cancel>取消</button><button type="button" data-import disabled>导入选中照片</button></footer>`;
+      <footer><span>单击选择 / 取消 · Ctrl 多选 · Shift 连选 · 双击导入</span><button type="button" data-cancel>取消</button><button type="button" data-import disabled>导入选中照片</button></footer>`;
     document.body.append(modal);
     const grid = modal.querySelector(".remember-photo-grid");
     const surface = document.createElement("div");
@@ -145,7 +145,10 @@
         selected.has(files[index].path) ? selected.delete(files[index].path) : selected.add(files[index].path);
         anchor = index;
       } else {
-        selected.clear(); selected.add(files[index].path); anchor = index;
+        const path = files[index].path;
+        if (event.type === 'click' && selected.has(path)) selected.delete(path);
+        else { selected.clear(); selected.add(path); }
+        anchor = index;
       }
       update();
     };
@@ -245,7 +248,7 @@
           const label = document.createElement("span"); label.textContent = file.name;
           button.title = file.name; button.append(img, label);
           button.addEventListener("click", event => select(index, event));
-          button.addEventListener("dblclick", () => { if (busy) return; selected.add(file.path); update(); commit(); });
+          button.addEventListener("dblclick", () => { if (busy) return; selected.clear(); selected.add(file.path); update(); commit(); });
           surface.append(button); cards.set(index, button); observer.observe(img);
           if (file.path === lastFile) {
             button.classList.add("last-photo");

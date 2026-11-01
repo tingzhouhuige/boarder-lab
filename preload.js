@@ -2,6 +2,13 @@ const { contextBridge, ipcRenderer } = require("electron");
 
 window.addEventListener("DOMContentLoaded", () => {
   document.body.classList.add("desktop-window");
+  ipcRenderer.on('border-lab:maximized-changed', (_event, maximized) => {
+    const button = document.querySelector('[data-window-action="maximize"]');
+    if(!button) return;
+    button.title = maximized ? '还原' : '最大化';
+    button.setAttribute('aria-label',button.title);
+    button.setAttribute('aria-pressed', String(maximized));
+  });
   ipcRenderer.on("border-lab:fullscreen-changed", (_event, fullscreen) => {
     const button = document.querySelector('[data-window-action="fullscreen"]');
     if (!button) return;

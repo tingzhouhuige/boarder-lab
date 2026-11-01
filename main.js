@@ -100,6 +100,10 @@ function createWindow() {
   });
 
   const notifyFullscreen = () => win.webContents.send("border-lab:fullscreen-changed", win.isFullScreen());
+  const notifyMaximized = () => win.webContents.send('border-lab:maximized-changed', win.isMaximized());
+  win.on('maximize', notifyMaximized);
+  win.on('unmaximize', notifyMaximized);
+  win.webContents.on('did-finish-load', notifyMaximized);
   win.on("enter-full-screen", notifyFullscreen);
   win.on("leave-full-screen", notifyFullscreen);
   win.webContents.on("before-input-event", (event, input) => {

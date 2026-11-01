@@ -4,7 +4,7 @@
   const apply = (dark) => {
     document.documentElement.dataset.theme = dark ? 'dark' : 'light';
     const label = dark ? '切换浅色模式' : '切换深色模式';
-    button.textContent = dark ? '☀' : '☾';
+    button.innerHTML = dark ? "<svg viewBox=\"0 0 20 20\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.4\" stroke-linecap=\"round\" aria-hidden=\"true\"><circle cx=\"10\" cy=\"10\" r=\"3.2\"/><path d=\"M10 1.7v1.6m0 13.4v1.6M1.7 10h1.6m13.4 0h1.6M4.1 4.1l1.2 1.2m9.4 9.4 1.2 1.2M4.1 15.9l1.2-1.2m9.4-9.4 1.2-1.2\"/></svg>" : "<svg viewBox=\"0 0 20 20\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.4\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M16.8 12.2A7.1 7.1 0 0 1 7.8 3.2a7.2 7.2 0 1 0 9 9Z\"/></svg>";
     button.title = label;
     button.setAttribute('aria-label', label);
     button.setAttribute('aria-pressed', String(dark));
@@ -147,7 +147,7 @@ window.paperSurface = new PaperSurface();
 
 ;
 // version.js
-window.BORDER_LAB_VERSION = "2.1.0";
+window.BORDER_LAB_VERSION = "2.1.1";
 
 ;
 // web-storage.js
@@ -330,7 +330,7 @@ window.BORDER_LAB_VERSION = "2.1.0";
     modal.innerHTML = `<header><strong>导入照片</strong><button type="button" data-folder>更换文件夹</button></header>
       <p data-path></p><p data-status role="status"></p>
       <div class="remember-photo-grid" role="group" aria-label="照片列表"></div>
-      <footer><span>单击单选 · Ctrl 多选 · Shift 连选 · 双击导入</span><button type="button" data-cancel>取消</button><button type="button" data-import disabled>导入选中照片</button></footer>`;
+      <footer><span>单击选择 / 取消 · Ctrl 多选 · Shift 连选 · 双击导入</span><button type="button" data-cancel>取消</button><button type="button" data-import disabled>导入选中照片</button></footer>`;
     document.body.append(modal);
     const grid = modal.querySelector(".remember-photo-grid");
     const surface = document.createElement("div");
@@ -463,7 +463,10 @@ window.BORDER_LAB_VERSION = "2.1.0";
         selected.has(files[index].path) ? selected.delete(files[index].path) : selected.add(files[index].path);
         anchor = index;
       } else {
-        selected.clear(); selected.add(files[index].path); anchor = index;
+        const path = files[index].path;
+        if (event.type === 'click' && selected.has(path)) selected.delete(path);
+        else { selected.clear(); selected.add(path); }
+        anchor = index;
       }
       update();
     };
@@ -563,7 +566,7 @@ window.BORDER_LAB_VERSION = "2.1.0";
           const label = document.createElement("span"); label.textContent = file.name;
           button.title = file.name; button.append(img, label);
           button.addEventListener("click", event => select(index, event));
-          button.addEventListener("dblclick", () => { if (busy) return; selected.add(file.path); update(); commit(); });
+          button.addEventListener("dblclick", () => { if (busy) return; selected.clear(); selected.add(file.path); update(); commit(); });
           surface.append(button); cards.set(index, button); observer.observe(img);
           if (file.path === lastFile) {
             button.classList.add("last-photo");
@@ -820,7 +823,7 @@ const templates = {
       cornerRadius: 50,
       subline: "NIKON Zfc",
       paperColor: "#34362f",
-      textColor: "#f2ead8",
+      textColor: "#ffffff",
     },
     portrait: {
       border: 48.4,
@@ -837,7 +840,7 @@ const templates = {
       cornerRadius: 50,
       subline: "NIKON Zfc",
       paperColor: "#34362f",
-      textColor: "#f2ead8",
+      textColor: "#ffffff",
     },
   },
   editorialSide: {
@@ -1039,11 +1042,15 @@ function updateTemplateControlVisibility(name) {
     });
   }
 
+  if (isOverlayWatermarkTemplate) {
+    [headlineInput, sublineInput].forEach(control => control.closest(".panel-section").classList.add("template-hidden"));
+    [headlineSizeRange, sublineSizeRange].forEach(control => control.closest(".panel-row-3").classList.add("template-hidden"));
+  }
   infoControlsRow.classList.toggle("template-hidden", isYiyinTemplate || isOverlayWatermarkTemplate);
   paperColorSection.classList.toggle("template-hidden", isYiyinTemplate || isOverlayWatermarkTemplate);
   photoStrokeRow.classList.toggle("template-hidden", !(isClassicTemplate || name === "plainWhite"));
-  useExifDateRow.classList.toggle("template-hidden", isEditorialTemplate || isSignatureWatermarkTemplate);
-  useExifCameraRow.classList.toggle("template-hidden", isEditorialTemplate || isSignatureWatermarkTemplate);
+  useExifDateRow.classList.toggle("template-hidden", isEditorialTemplate || isOverlayWatermarkTemplate);
+  useExifCameraRow.classList.toggle("template-hidden", isEditorialTemplate || isOverlayWatermarkTemplate);
   watermarkControls.classList.toggle("hidden", !isOverlayWatermarkTemplate);
   watermarkSelectRow.classList.toggle("hidden", !isSignatureWatermarkTemplate);
   watermarkInvertRow.classList.toggle("hidden", !isSignatureWatermarkTemplate);
@@ -1759,6 +1766,7 @@ function headlineText() {
   if (manual && dateText) {
     return `${manual}  ${dateText}`;
   }
+  if (currentTemplate === "galleryDark") return manual || dateText;
   return manual || dateText || (currentFile ? currentFile.name.replace(/\.[^.]+$/, "") : "未命名照片");
 }
 
@@ -2038,8 +2046,8 @@ function renderGalleryDarkFrame(targetCanvas, maxLongSide, roundedCorners) {
   const outputWidth = size.width + outerPadding * 2;
   const titleLine = [headlineText(), exifLineText()].filter(Boolean).join("   ");
   const detailLine = sublineText() || "Nikon Z fc";
-  const titleFontPx = Math.max(24, Math.round(outputWidth * 0.024 * (Number(headlineSizeRange.value) / 100)));
-  const detailFontPx = Math.max(18, Math.round(outputWidth * 0.018 * (Number(sublineSizeRange.value) / 100)));
+  const titleFontPx = Math.max(1, Math.round(outputWidth * 0.024 * (Number(headlineSizeRange.value) / 100)));
+  const detailFontPx = Math.max(1, Math.round(outputWidth * 0.018 * (Number(sublineSizeRange.value) / 100)));
   const captionTopPadding = Math.round(outputWidth * 0.018);
   const titleLineHeight = Math.round(titleFontPx * 1.25);
   const detailLineHeight = Math.round(detailFontPx * 1.25);
@@ -2254,12 +2262,26 @@ function trackedTextWidth(targetCtx, text, tracking) {
     + tracking * Math.max(0, chars.length - 1);
 }
 
+const brandInkBounds = new WeakMap();
+function getBrandInkBounds(image) {
+  if (brandInkBounds.has(image)) return brandInkBounds.get(image);
+  const canvas = document.createElement('canvas');
+  canvas.width = image.naturalWidth; canvas.height = image.naturalHeight;
+  const context = canvas.getContext('2d', {willReadFrequently:true});
+  context.drawImage(image,0,0);
+  const pixels=context.getImageData(0,0,canvas.width,canvas.height).data;
+  let left=canvas.width,top=canvas.height,right=-1,bottom=-1;
+  for(let y=0;y<canvas.height;y++) for(let x=0;x<canvas.width;x++) if(pixels[(y*canvas.width+x)*4+3]>16){left=Math.min(left,x);right=Math.max(right,x);top=Math.min(top,y);bottom=Math.max(bottom,y);}
+  const bounds=right<0?{x:0,y:0,width:canvas.width,height:canvas.height}:{x:left,y:top,width:right-left+1,height:bottom-top+1};
+  brandInkBounds.set(image,bounds);return bounds;
+}
 function renderBrandWatermarkFrame(targetCanvas, maxLongSide, roundedCorners, options) {
   const targetCtx = targetCanvas.getContext("2d");
   const size = scaledImageSizeForMaxLongSide(maxLongSide);
   const outputWidth = size.width;
   const outputHeight = size.height;
   const brandImage = options.logoImage;
+  const ink = brandImage.complete && brandImage.naturalWidth > 0 ? getBrandInkBounds(brandImage) : null;
   const brandRatio = options.logoRatio;
   const defaultModelText = options.defaultModelText;
   const fallbackBrandText = options.fallbackBrandText;
@@ -2275,7 +2297,7 @@ function renderBrandWatermarkFrame(targetCanvas, maxLongSide, roundedCorners, op
 
   drawImageWithOrientation(targetCtx, currentImage, { x: 0, y: 0, width: outputWidth, height: outputHeight }, currentOrientation);
 
-  const modelText = brandCameraModelText(defaultModelText);
+  const modelText = manualExifText !== null ? manualExifText : [formatAperture(Number(currentExif.fNumber)), formatExposure(Number(currentExif.exposureTime)), currentExif.iso ? `ISO ${currentExif.iso}` : ""].filter(Boolean).join("   ");
   const brandText = fallbackBrandText;
   const textSizePercent = Number(watermarkSizeRange.value) / 100;
   const logoSizePercent = Number(brandLogoSizeRange.value) / 100;
@@ -2337,7 +2359,7 @@ function renderBrandWatermarkFrame(targetCanvas, maxLongSide, roundedCorners, op
   const brandX = dividerX + dividerWidth / 2 + gap + brandWidth / 2;
 
   registerPreviewTextRegion(targetCanvas, {
-    kind: "brandModel",
+    kind: "exif",
     x: startX,
     y: centerY - modelFontPx,
     width: modelWidth,
@@ -2346,7 +2368,7 @@ function renderBrandWatermarkFrame(targetCanvas, maxLongSide, roundedCorners, op
   });
 
   targetCtx.font = `${textWeight} ${modelFontPx}px ${modelFontFamily}`;
-  if (targetCanvas !== previewCanvas || activeInlineEditKind !== "brandModel") {
+  if (targetCanvas !== previewCanvas || activeInlineEditKind !== "exif") {
     drawTrackedText(
       targetCtx,
       modelText,
@@ -2368,7 +2390,7 @@ function renderBrandWatermarkFrame(targetCanvas, maxLongSide, roundedCorners, op
     targetCtx.drawImage(
       brandImage,
       Math.round(brandX - brandWidth / 2),
-      Math.round(centerY - logoHeight / 2),
+      centerY - logoHeight * (ink ? (ink.y + ink.height / 2) / brandImage.naturalHeight : 0.5),
       brandWidth,
       logoHeight
     );
@@ -4339,6 +4361,51 @@ loadSavedWatermark();
 uploadButton.disabled = false;
 uploadButton.querySelector('.upload-title').textContent = '导入照片';
 window.BORDER_LAB_READY = true;
+
+// Numeric companions preserve the existing slider event and history handling.
+document.querySelectorAll('.control-panel input[type="range"]').forEach(range => {
+  const row = range.closest('.panel-section')?.querySelector('.field-label-row');
+  const valueLabel = row?.querySelector('span');
+  if (!valueLabel) return;
+  const field = document.createElement('input');
+  field.type = 'number'; field.className = 'range-number';
+  field.min = range.min; field.max = range.max; field.step = range.step || '1';
+  field.value = range.value;
+  field.setAttribute('aria-label', (row.querySelector('label')?.textContent || '') + '数值');
+  valueLabel.hidden = true; row.appendChild(field);
+  const sync = () => { if (document.activeElement !== field) field.value = range.value; };
+  new MutationObserver(sync).observe(valueLabel, {childList:true, characterData:true, subtree:true});
+  range.addEventListener('input', sync); range.addEventListener('change', sync);
+  field.addEventListener('input', () => {
+    if (field.value === '' || !Number.isFinite(field.valueAsNumber)) return;
+    range.value = String(Math.min(Number(range.max), Math.max(Number(range.min), field.valueAsNumber)));
+    range.dispatchEvent(new Event('input', {bubbles:true}));
+  });
+  field.addEventListener('change', () => {
+    field.value = range.value; range.dispatchEvent(new Event('change', {bubbles:true}));
+  });
+  field.addEventListener('blur', () => { field.value = range.value; });
+  field.addEventListener('keydown', event => { if(event.key === 'Enter') {event.preventDefault();field.blur();} });
+});
+
+document.querySelectorAll('.panel-row-3 .field-label-row label').forEach(label => {label.title = label.textContent;});
+
+// Fit full labels to their own track without truncating their text.
+const fitParameterLabels = () => {
+  document.querySelectorAll('.panel-row-3 .field-label-row label').forEach(label => {
+    if (!label.getClientRects().length || !label.clientWidth) return;
+    label.style.fontSize = '';
+    const canvas = fitParameterLabels.canvas || (fitParameterLabels.canvas = document.createElement('canvas'));
+    const context = canvas.getContext('2d');
+    const style = getComputedStyle(label);
+    context.font = style.font;
+    const width = context.measureText(label.textContent).width;
+    if (width > label.clientWidth) label.style.fontSize = (parseFloat(style.fontSize) * label.clientWidth / width) + 'px';
+  });
+};
+new ResizeObserver(fitParameterLabels).observe(document.querySelector('.control-panel'));
+new MutationObserver(fitParameterLabels).observe(document.querySelector('.control-panel'), {childList:true,subtree:true,attributes:true,attributeFilter:['class']});
+fitParameterLabels();
 
 ;
 // edit-history.js

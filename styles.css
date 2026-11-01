@@ -2284,3 +2284,7 @@ input[type="color"]::-moz-color-swatch {
 [data-theme="dark"] .remember-photo-grid .last-photo-badge { background: #3a3a3c; color: #ddd; border-color: #666; }
 [data-theme="dark"] .remember-photo-picker footer, [data-theme="dark"] .remember-photo-picker p { color: rgba(255,255,255,.7); }
 @media (prefers-reduced-motion: reduce) { .remember-photo-picker button { transition: none; } }
+
+.range-number { width: 68px; box-sizing: border-box; padding: 3px 7px; border: 1px solid transparent; border-radius: 7px; background: transparent; color: inherit; font: inherit; font-variant-numeric: tabular-nums; text-align: right; transition: background .15s, border-color .15s; }
+.range-number:hover { background: rgba(128,128,128,.08); }
+.range-number:focus { outline: none; border-color: currentColor; background: rgba(128,128,128,.1); }

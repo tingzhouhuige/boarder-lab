@@ -1,6 +1,6 @@
 node_modules/
 dist/
-release*/
+/release*/
 Border Lab Desktop*/
 *.log
 npm-debug.log*
@@ -9,3 +9,9 @@ yarn-error.log*
 .DS_Store
 Thumbs.db
 assets/watermark.png
+
+# Local build tools, profiles, and validation output
+dist-verified/
+build-cache/
+.env
+.env.*
